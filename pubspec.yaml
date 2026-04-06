@@ -1,0 +1,43 @@
+name: winsoft
+description: Sales, Invoicing & Company Management App
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Navigation
+  go_router: ^14.8.1
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Charts for dashboard
+  fl_chart: ^0.69.0
+
+  # Internationalization (currency, date formatting)
+  intl: ^0.20.2
+
+  # Local storage
+  shared_preferences: ^2.3.5
+
+  # Enhanced data table
+  data_table_2: ^2.5.15
+
+  # Unique IDs
+  uuid: ^4.5.1
+
+  # Icons
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
