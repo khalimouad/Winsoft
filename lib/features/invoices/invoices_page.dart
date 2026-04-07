@@ -1,84 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/providers/providers.dart';
+import '../../core/utils/morocco_format.dart';
 
-class InvoicesPage extends StatefulWidget {
+class InvoicesPage extends ConsumerStatefulWidget {
   const InvoicesPage({super.key});
-
   @override
-  State<InvoicesPage> createState() => _InvoicesPageState();
+  ConsumerState<InvoicesPage> createState() => _InvoicesPageState();
 }
 
-class _InvoicesPageState extends State<InvoicesPage> {
-  String _selectedStatus = 'All';
-
-  final _invoices = const [
-    {
-      'id': 'INV-2026-001',
-      'client': 'Maria Gonzalez',
-      'company': 'Horizon Group',
-      'amount': '\$5,640',
-      'issued': 'Apr 6, 2026',
-      'due': 'Apr 20, 2026',
-      'status': 'Draft'
-    },
-    {
-      'id': 'INV-2026-002',
-      'client': 'John Mitchell',
-      'company': 'Acme Corporation',
-      'amount': '\$4,200',
-      'issued': 'Apr 5, 2026',
-      'due': 'Apr 19, 2026',
-      'status': 'Paid'
-    },
-    {
-      'id': 'INV-2026-003',
-      'client': 'Sarah Chen',
-      'company': 'Globe Industries',
-      'amount': '\$1,850',
-      'issued': 'Apr 4, 2026',
-      'due': 'Apr 18, 2026',
-      'status': 'Sent'
-    },
-    {
-      'id': 'INV-2026-004',
-      'client': 'James Lee',
-      'company': 'Delta Services',
-      'amount': '\$9,100',
-      'issued': 'Mar 28, 2026',
-      'due': 'Apr 11, 2026',
-      'status': 'Overdue'
-    },
-    {
-      'id': 'INV-2026-005',
-      'client': 'Robert Torres',
-      'company': 'TechStart Ltd',
-      'amount': '\$3,100',
-      'issued': 'Mar 25, 2026',
-      'due': 'Apr 8, 2026',
-      'status': 'Paid'
-    },
-    {
-      'id': 'INV-2026-006',
-      'client': 'Emily Watson',
-      'company': 'Sunrise Retail',
-      'amount': '\$750',
-      'issued': 'Mar 20, 2026',
-      'due': 'Apr 3, 2026',
-      'status': 'Overdue'
-    },
-  ];
+class _InvoicesPageState extends ConsumerState<InvoicesPage> {
+  String _selectedStatus = 'Tous';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final statuses = ['All', 'Draft', 'Sent', 'Paid', 'Overdue'];
-    final filtered = _selectedStatus == 'All'
-        ? _invoices
-        : _invoices.where((i) => i['status'] == _selectedStatus).toList();
-
-    // Summary totals
-    final totalPaid = _invoices.where((i) => i['status'] == 'Paid').length;
-    final totalOverdue = _invoices.where((i) => i['status'] == 'Overdue').length;
-    final totalSent = _invoices.where((i) => i['status'] == 'Sent').length;
+    final async = ref.watch(invoiceProvider);
+    final statuses = ['Tous', ...MoroccoFormat.invoiceStatuses];
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
@@ -87,19 +25,23 @@ class _InvoicesPageState extends State<InvoicesPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Invoices',
+                    Text('Factures Clients',
                         style: theme.textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold)),
-                    Text('${_invoices.length} invoices total',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant)),
+                    async.whenOrNull(
+                            data: (list) =>
+                                Text('${list.length} factures',
+                                    style: theme.textTheme.bodyMedium
+                                        ?.copyWith(
+                                            color: theme.colorScheme
+                                                .onSurfaceVariant))) ??
+                        const SizedBox.shrink(),
                   ],
                 ),
                 Row(
@@ -107,13 +49,13 @@ class _InvoicesPageState extends State<InvoicesPage> {
                     OutlinedButton.icon(
                       onPressed: () {},
                       icon: const Icon(Icons.download_outlined, size: 18),
-                      label: const Text('Export'),
+                      label: const Text('Exporter'),
                     ),
                     const SizedBox(width: 8),
                     FilledButton.icon(
                       onPressed: () {},
                       icon: const Icon(Icons.add, size: 18),
-                      label: const Text('New Invoice'),
+                      label: const Text('Nouvelle facture'),
                     ),
                   ],
                 ),
@@ -121,28 +63,39 @@ class _InvoicesPageState extends State<InvoicesPage> {
             ),
             const SizedBox(height: 20),
 
-            // Summary mini-cards
-            Row(
-              children: [
-                _MiniStat(
-                    label: 'Paid',
-                    count: '$totalPaid',
-                    color: Colors.green),
-                const SizedBox(width: 12),
-                _MiniStat(
-                    label: 'Sent',
-                    count: '$totalSent',
-                    color: const Color(0xFF1565C0)),
-                const SizedBox(width: 12),
-                _MiniStat(
-                    label: 'Overdue',
-                    count: '$totalOverdue',
-                    color: Colors.red),
-              ],
+            // Summary badges
+            async.maybeWhen(
+              data: (invoices) {
+                final paid = invoices
+                    .where((i) => i.status == 'Payée')
+                    .length;
+                final sent = invoices
+                    .where((i) => i.status == 'Envoyée')
+                    .length;
+                final overdue = invoices
+                    .where((i) => i.status == 'En retard')
+                    .length;
+                return Row(children: [
+                  _MiniStat(
+                      label: 'Payées',
+                      count: '$paid',
+                      color: Colors.green),
+                  const SizedBox(width: 12),
+                  _MiniStat(
+                      label: 'Envoyées',
+                      count: '$sent',
+                      color: const Color(0xFF1565C0)),
+                  const SizedBox(width: 12),
+                  _MiniStat(
+                      label: 'En retard',
+                      count: '$overdue',
+                      color: Colors.red),
+                ]);
+              },
+              orElse: () => const SizedBox.shrink(),
             ),
             const SizedBox(height: 16),
 
-            // Filter chips
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -163,76 +116,124 @@ class _InvoicesPageState extends State<InvoicesPage> {
             ),
             const SizedBox(height: 16),
 
-            // Table
             Expanded(
-              child: Card(
-                child: SingleChildScrollView(
-                  child: DataTable(
-                    headingRowColor: WidgetStateProperty.all(
-                        theme.colorScheme.surfaceContainerLowest),
-                    columnSpacing: 20,
-                    headingTextStyle: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+              child: async.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(child: Text('Erreur: $e')),
+                data: (invoices) {
+                  final filtered = _selectedStatus == 'Tous'
+                      ? invoices
+                      : invoices
+                          .where((i) => i.status == _selectedStatus)
+                          .toList();
+                  return Card(
+                    child: SingleChildScrollView(
+                      child: DataTable(
+                        headingRowColor: WidgetStateProperty.all(
+                            theme.colorScheme.surfaceContainerLowest),
+                        columnSpacing: 16,
+                        headingTextStyle:
+                            theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        columns: const [
+                          DataColumn(label: Text('FACTURE')),
+                          DataColumn(label: Text('CLIENT')),
+                          DataColumn(label: Text('ÉMISSION')),
+                          DataColumn(label: Text('ÉCHÉANCE')),
+                          DataColumn(
+                              label: Text('MONTANT HT'), numeric: true),
+                          DataColumn(label: Text('TVA'), numeric: true),
+                          DataColumn(
+                              label: Text('TOTAL TTC'), numeric: true),
+                          DataColumn(label: Text('STATUT')),
+                          DataColumn(label: Text('ACTIONS')),
+                        ],
+                        rows: filtered
+                            .map((inv) => DataRow(cells: [
+                                  DataCell(Text(inv.reference,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w500))),
+                                  DataCell(Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(inv.clientName ?? '—'),
+                                      if (inv.companyName != null)
+                                        Text(inv.companyName!,
+                                            style: TextStyle(
+                                                fontSize: 11,
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .onSurfaceVariant)),
+                                    ],
+                                  )),
+                                  DataCell(Text(MoroccoFormat.date(
+                                      inv.issuedDate))),
+                                  DataCell(Text(
+                                    MoroccoFormat.date(inv.dueDate),
+                                    style: TextStyle(
+                                        color: inv.isOverdue
+                                            ? Colors.red.shade700
+                                            : null),
+                                  )),
+                                  DataCell(Text(
+                                      MoroccoFormat.mad(inv.totalHt))),
+                                  DataCell(Text(
+                                      MoroccoFormat.mad(inv.totalTva))),
+                                  DataCell(Text(
+                                    MoroccoFormat.mad(inv.totalTtc),
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600),
+                                  )),
+                                  DataCell(_InvoiceStatusChip(
+                                      status: inv.status)),
+                                  DataCell(Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(
+                                            Icons.visibility_outlined,
+                                            size: 18),
+                                        onPressed: () {},
+                                        visualDensity:
+                                            VisualDensity.compact,
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(
+                                            Icons.picture_as_pdf_outlined,
+                                            size: 18),
+                                        onPressed: () {},
+                                        tooltip: 'Télécharger PDF',
+                                        visualDensity:
+                                            VisualDensity.compact,
+                                      ),
+                                      PopupMenuButton<String>(
+                                        icon: const Icon(Icons.more_vert,
+                                            size: 18),
+                                        itemBuilder: (ctx) =>
+                                            MoroccoFormat.invoiceStatuses
+                                                .map((s) =>
+                                                    PopupMenuItem(
+                                                        value: s,
+                                                        child: Text(s)))
+                                                .toList(),
+                                        onSelected: (s) => ref
+                                            .read(invoiceProvider
+                                                .notifier)
+                                            .updateStatus(inv.id!, s),
+                                      ),
+                                    ],
+                                  )),
+                                ]))
+                            .toList(),
+                      ),
                     ),
-                    columns: const [
-                      DataColumn(label: Text('INVOICE')),
-                      DataColumn(label: Text('CLIENT')),
-                      DataColumn(label: Text('COMPANY')),
-                      DataColumn(label: Text('AMOUNT'), numeric: true),
-                      DataColumn(label: Text('ISSUED')),
-                      DataColumn(label: Text('DUE DATE')),
-                      DataColumn(label: Text('STATUS')),
-                      DataColumn(label: Text('ACTIONS')),
-                    ],
-                    rows: filtered
-                        .map((inv) => DataRow(cells: [
-                              DataCell(Text(inv['id']!,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w500))),
-                              DataCell(Text(inv['client']!)),
-                              DataCell(Text(inv['company']!)),
-                              DataCell(Text(inv['amount']!,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600))),
-                              DataCell(Text(inv['issued']!)),
-                              DataCell(Text(inv['due']!,
-                                  style: TextStyle(
-                                      color: inv['status'] == 'Overdue'
-                                          ? Colors.red.shade700
-                                          : null))),
-                              DataCell(
-                                  _InvoiceStatusChip(status: inv['status']!)),
-                              DataCell(Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.visibility_outlined,
-                                        size: 18),
-                                    onPressed: () {},
-                                    tooltip: 'View',
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.picture_as_pdf_outlined,
-                                        size: 18),
-                                    onPressed: () {},
-                                    tooltip: 'Download PDF',
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.send_outlined,
-                                        size: 18),
-                                    onPressed: () {},
-                                    tooltip: 'Send',
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ],
-                              )),
-                            ]))
-                        .toList(),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ],
@@ -244,11 +245,12 @@ class _InvoicesPageState extends State<InvoicesPage> {
 
 class _MiniStat extends StatelessWidget {
   const _MiniStat(
-      {required this.label, required this.count, required this.color});
+      {required this.label,
+      required this.count,
+      required this.color});
   final String label;
   final String count;
   final Color color;
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -265,7 +267,8 @@ class _MiniStat extends StatelessWidget {
           Container(
             width: 8,
             height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            decoration: BoxDecoration(
+                color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 8),
           Text('$count $label',
@@ -280,32 +283,31 @@ class _MiniStat extends StatelessWidget {
 class _InvoiceStatusChip extends StatelessWidget {
   const _InvoiceStatusChip({required this.status});
   final String status;
-
   @override
   Widget build(BuildContext context) {
     Color color;
     Color bg;
     switch (status) {
-      case 'Paid':
+      case 'Payée':
         color = Colors.green.shade700;
         bg = Colors.green.withValues(alpha: 0.1);
         break;
-      case 'Sent':
+      case 'Envoyée':
         color = const Color(0xFF1565C0);
         bg = const Color(0xFF1565C0).withValues(alpha: 0.1);
         break;
-      case 'Overdue':
+      case 'En retard':
         color = Colors.red.shade700;
         bg = Colors.red.withValues(alpha: 0.1);
         break;
-      default:
+      default: // Brouillon
         color = Colors.grey.shade600;
         bg = Colors.grey.withValues(alpha: 0.1);
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration:
-          BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      decoration: BoxDecoration(
+          color: bg, borderRadius: BorderRadius.circular(20)),
       child: Text(status,
           style: TextStyle(
               color: color, fontSize: 12, fontWeight: FontWeight.w600)),

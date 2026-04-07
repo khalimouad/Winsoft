@@ -1,75 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/models/client.dart';
+import '../../core/providers/providers.dart';
+import '../../core/utils/morocco_format.dart';
 
-class ClientsPage extends StatefulWidget {
+class ClientsPage extends ConsumerStatefulWidget {
   const ClientsPage({super.key});
-
   @override
-  State<ClientsPage> createState() => _ClientsPageState();
+  ConsumerState<ClientsPage> createState() => _ClientsPageState();
 }
 
-class _ClientsPageState extends State<ClientsPage> {
+class _ClientsPageState extends ConsumerState<ClientsPage> {
   String _search = '';
-
-  final _clients = const [
-    {
-      'name': 'John Mitchell',
-      'company': 'Acme Corporation',
-      'email': 'j.mitchell@acme.com',
-      'phone': '+1 555 0101',
-      'totalSpent': '\$12,400',
-      'lastOrder': 'Apr 5, 2026'
-    },
-    {
-      'name': 'Sarah Chen',
-      'company': 'Globe Industries',
-      'email': 's.chen@globe.io',
-      'phone': '+1 555 0143',
-      'totalSpent': '\$8,950',
-      'lastOrder': 'Apr 3, 2026'
-    },
-    {
-      'name': 'Robert Torres',
-      'company': 'TechStart Ltd',
-      'email': 'r.torres@techstart.com',
-      'phone': '+1 555 0200',
-      'totalSpent': '\$5,600',
-      'lastOrder': 'Mar 28, 2026'
-    },
-    {
-      'name': 'Emily Watson',
-      'company': 'Sunrise Retail',
-      'email': 'e.watson@sunrise.com',
-      'phone': '+1 555 0189',
-      'totalSpent': '\$2,100',
-      'lastOrder': 'Mar 20, 2026'
-    },
-    {
-      'name': 'James Lee',
-      'company': 'Delta Services',
-      'email': 'j.lee@delta.net',
-      'phone': '+1 555 0156',
-      'totalSpent': '\$19,800',
-      'lastOrder': 'Apr 4, 2026'
-    },
-    {
-      'name': 'Maria Gonzalez',
-      'company': 'Horizon Group',
-      'email': 'm.gonzalez@horizon.com',
-      'phone': '+1 555 0178',
-      'totalSpent': '\$31,200',
-      'lastOrder': 'Apr 6, 2026'
-    },
-  ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final filtered = _clients
-        .where((c) =>
-            c['name']!.toLowerCase().contains(_search.toLowerCase()) ||
-            c['company']!.toLowerCase().contains(_search.toLowerCase()) ||
-            c['email']!.toLowerCase().contains(_search.toLowerCase()))
-        .toList();
+    final clientsAsync = ref.watch(clientProvider);
+    final companiesAsync = ref.watch(companyProvider);
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
@@ -87,15 +35,18 @@ class _ClientsPageState extends State<ClientsPage> {
                     Text('Clients',
                         style: theme.textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.bold)),
-                    Text('${_clients.length} clients total',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant)),
+                    clientsAsync.whenOrNull(
+                            data: (list) => Text('${list.length} clients',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: theme.colorScheme
+                                        .onSurfaceVariant))) ??
+                        const SizedBox.shrink(),
                   ],
                 ),
                 FilledButton.icon(
-                  onPressed: () {},
+                  onPressed: () => _showDialog(context, companiesAsync.value ?? []),
                   icon: const Icon(Icons.person_add_outlined, size: 18),
-                  label: const Text('Add Client'),
+                  label: const Text('Nouveau client'),
                 ),
               ],
             ),
@@ -104,93 +55,275 @@ class _ClientsPageState extends State<ClientsPage> {
               width: 360,
               child: TextField(
                 decoration: InputDecoration(
-                  hintText: 'Search clients...',
+                  hintText: 'Rechercher...',
                   prefixIcon: const Icon(Icons.search, size: 20),
                   isDense: true,
                   filled: true,
                   fillColor: theme.colorScheme.surface,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide:
-                        BorderSide(color: theme.colorScheme.outlineVariant),
-                  ),
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide(
+                          color: theme.colorScheme.outlineVariant)),
                 ),
-                onChanged: (val) => setState(() => _search = val),
+                onChanged: (v) => setState(() => _search = v),
               ),
             ),
             const SizedBox(height: 16),
             Expanded(
-              child: Card(
-                child: SingleChildScrollView(
-                  child: DataTable(
-                    headingRowColor: WidgetStateProperty.all(
-                        theme.colorScheme.surfaceContainerLowest),
-                    columnSpacing: 24,
-                    headingTextStyle: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+              child: clientsAsync.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(child: Text('Erreur: $e')),
+                data: (clients) {
+                  final filtered = clients
+                      .where((c) =>
+                          c.name
+                              .toLowerCase()
+                              .contains(_search.toLowerCase()) ||
+                          (c.companyName ?? '')
+                              .toLowerCase()
+                              .contains(_search.toLowerCase()) ||
+                          (c.email ?? '')
+                              .toLowerCase()
+                              .contains(_search.toLowerCase()))
+                      .toList();
+                  return Card(
+                    child: SingleChildScrollView(
+                      child: DataTable(
+                        headingRowColor: WidgetStateProperty.all(
+                            theme.colorScheme.surfaceContainerLowest),
+                        columnSpacing: 20,
+                        headingTextStyle:
+                            theme.textTheme.labelMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        columns: const [
+                          DataColumn(label: Text('NOM')),
+                          DataColumn(label: Text('ENTREPRISE')),
+                          DataColumn(label: Text('EMAIL')),
+                          DataColumn(label: Text('TÉLÉPHONE')),
+                          DataColumn(label: Text('VILLE')),
+                          DataColumn(label: Text('CIN / ICE')),
+                          DataColumn(label: Text('ACTIONS')),
+                        ],
+                        rows: filtered
+                            .map((c) => DataRow(cells: [
+                                  DataCell(Row(children: [
+                                    CircleAvatar(
+                                      radius: 16,
+                                      backgroundColor: theme
+                                          .colorScheme.tertiaryContainer,
+                                      child: Text(c.name[0],
+                                          style: TextStyle(
+                                              color: theme.colorScheme
+                                                  .onTertiaryContainer,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12)),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(c.name,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w500)),
+                                  ])),
+                                  DataCell(Text(c.companyName ?? '—')),
+                                  DataCell(Text(c.email ?? '—')),
+                                  DataCell(Text(c.phone != null
+                                      ? MoroccoFormat.phone(c.phone!)
+                                      : '—')),
+                                  DataCell(Text(c.city ?? '—')),
+                                  DataCell(Text(c.cin ?? c.ice ?? '—',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: theme.colorScheme
+                                              .onSurfaceVariant))),
+                                  DataCell(Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(
+                                            Icons.edit_outlined,
+                                            size: 18),
+                                        onPressed: () => _showDialog(
+                                            context,
+                                            companiesAsync.value ?? [],
+                                            client: c),
+                                        visualDensity:
+                                            VisualDensity.compact,
+                                      ),
+                                      IconButton(
+                                        icon: Icon(
+                                            Icons.delete_outline,
+                                            size: 18,
+                                            color:
+                                                theme.colorScheme.error),
+                                        onPressed: () =>
+                                            _confirmDelete(context, c),
+                                        visualDensity:
+                                            VisualDensity.compact,
+                                      ),
+                                    ],
+                                  )),
+                                ]))
+                            .toList(),
+                      ),
                     ),
-                    columns: const [
-                      DataColumn(label: Text('CLIENT')),
-                      DataColumn(label: Text('COMPANY')),
-                      DataColumn(label: Text('EMAIL')),
-                      DataColumn(label: Text('PHONE')),
-                      DataColumn(label: Text('TOTAL SPENT'), numeric: true),
-                      DataColumn(label: Text('LAST ORDER')),
-                      DataColumn(label: Text('ACTIONS')),
-                    ],
-                    rows: filtered
-                        .map((c) => DataRow(cells: [
-                              DataCell(Row(
-                                children: [
-                                  CircleAvatar(
-                                    radius: 16,
-                                    backgroundColor:
-                                        theme.colorScheme.tertiaryContainer,
-                                    child: Text(c['name']![0],
-                                        style: TextStyle(
-                                            color: theme.colorScheme
-                                                .onTertiaryContainer,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12)),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Text(c['name']!,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w500)),
-                                ],
-                              )),
-                              DataCell(Text(c['company']!)),
-                              DataCell(Text(c['email']!)),
-                              DataCell(Text(c['phone']!)),
-                              DataCell(Text(c['totalSpent']!,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w600))),
-                              DataCell(Text(c['lastOrder']!)),
-                              DataCell(Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.visibility_outlined,
-                                        size: 18),
-                                    onPressed: () {},
-                                    tooltip: 'View',
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.edit_outlined,
-                                        size: 18),
-                                    onPressed: () {},
-                                    tooltip: 'Edit',
-                                    visualDensity: VisualDensity.compact,
-                                  ),
-                                ],
-                              )),
-                            ]))
-                        .toList(),
-                  ),
-                ),
+                  );
+                },
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, Client c) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer le client'),
+        content: Text('Supprimer "${c.name}" ?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Annuler')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error),
+            onPressed: () {
+              ref.read(clientProvider.notifier).remove(c.id!);
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDialog(BuildContext context, List companies,
+      {Client? client}) {
+    final nameCtrl = TextEditingController(text: client?.name ?? '');
+    final emailCtrl =
+        TextEditingController(text: client?.email ?? '');
+    final phoneCtrl =
+        TextEditingController(text: client?.phone ?? '');
+    final addressCtrl =
+        TextEditingController(text: client?.address ?? '');
+    final cinCtrl = TextEditingController(text: client?.cin ?? '');
+    final iceCtrl = TextEditingController(text: client?.ice ?? '');
+    String selectedCity = client?.city ?? MoroccoFormat.cities.first;
+    int? selectedCompanyId = client?.companyId;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text(client == null ? 'Nouveau client' : 'Modifier'),
+          content: SizedBox(
+            width: 480,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                      controller: nameCtrl,
+                      decoration:
+                          const InputDecoration(labelText: 'Nom complet *')),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int?>(
+                    value: selectedCompanyId,
+                    decoration:
+                        const InputDecoration(labelText: 'Entreprise'),
+                    items: [
+                      const DropdownMenuItem(
+                          value: null, child: Text('— Aucune —')),
+                      ...companies.map((co) => DropdownMenuItem(
+                          value: co.id, child: Text(co.name))),
+                    ],
+                    onChanged: (v) =>
+                        setState(() => selectedCompanyId = v),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                      controller: emailCtrl,
+                      decoration:
+                          const InputDecoration(labelText: 'Email')),
+                  const SizedBox(height: 12),
+                  TextField(
+                      controller: phoneCtrl,
+                      decoration: const InputDecoration(
+                          labelText: 'Téléphone')),
+                  const SizedBox(height: 12),
+                  TextField(
+                      controller: addressCtrl,
+                      decoration:
+                          const InputDecoration(labelText: 'Adresse')),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedCity,
+                    decoration:
+                        const InputDecoration(labelText: 'Ville'),
+                    items: MoroccoFormat.cities
+                        .map((c) => DropdownMenuItem(
+                            value: c, child: Text(c)))
+                        .toList(),
+                    onChanged: (v) =>
+                        setState(() => selectedCity = v!),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                      controller: cinCtrl,
+                      decoration:
+                          const InputDecoration(labelText: 'CIN')),
+                  const SizedBox(height: 12),
+                  TextField(
+                      controller: iceCtrl,
+                      decoration:
+                          const InputDecoration(labelText: 'ICE')),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Annuler')),
+            FilledButton(
+              onPressed: () {
+                if (nameCtrl.text.trim().isEmpty) return;
+                final now = DateTime.now().millisecondsSinceEpoch;
+                final c = Client(
+                  id: client?.id,
+                  name: nameCtrl.text.trim(),
+                  companyId: selectedCompanyId,
+                  email: emailCtrl.text.trim().isEmpty
+                      ? null
+                      : emailCtrl.text.trim(),
+                  phone: phoneCtrl.text.trim().isEmpty
+                      ? null
+                      : phoneCtrl.text.trim(),
+                  address: addressCtrl.text.trim().isEmpty
+                      ? null
+                      : addressCtrl.text.trim(),
+                  city: selectedCity,
+                  cin: cinCtrl.text.trim().isEmpty
+                      ? null
+                      : cinCtrl.text.trim(),
+                  ice: iceCtrl.text.trim().isEmpty
+                      ? null
+                      : iceCtrl.text.trim(),
+                  createdAt: client?.createdAt ?? now,
+                );
+                if (client == null) {
+                  ref.read(clientProvider.notifier).add(c);
+                } else {
+                  ref.read(clientProvider.notifier).edit(c);
+                }
+                Navigator.of(ctx).pop();
+              },
+              child: Text(client == null ? 'Ajouter' : 'Enregistrer'),
             ),
           ],
         ),
