@@ -26,6 +26,20 @@ class DatabaseHelper {
 
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
+      CREATE TABLE users (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        name          TEXT    NOT NULL,
+        email         TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+        password_hash TEXT    NOT NULL,
+        role          TEXT    NOT NULL DEFAULT 'employee',
+        avatar        TEXT,
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    INTEGER NOT NULL,
+        last_login_at INTEGER
+      )
+    ''');
+
+    await db.execute('''
       CREATE TABLE companies (
         id            INTEGER PRIMARY KEY AUTOINCREMENT,
         name          TEXT    NOT NULL,
@@ -143,6 +157,37 @@ class DatabaseHelper {
 
   Future<void> _seedData(Database db) async {
     final now = DateTime.now().millisecondsSinceEpoch;
+
+    // Seed users
+    // Default admin: admin@winsoft.ma / Admin123
+    await db.insert('users', {
+      'name': 'Administrateur',
+      'email': 'admin@winsoft.ma',
+      'password_hash': 'h\$c4f9a2b1', // Admin123
+      'role': 'admin',
+      'is_active': 1,
+      'created_at': now,
+    });
+    await db.insert('users', {
+      'name': 'Karim Bensouda',
+      'email': 'k.bensouda@winsoft.ma',
+      'password_hash': 'h\$a1b2c3d4',
+      'role': 'manager',
+      'is_active': 1,
+      'created_at': now,
+    });
+    await db.insert('users', {
+      'name': 'Samira El Alami',
+      'email': 's.elalami@winsoft.ma',
+      'password_hash': 'h\$d4c3b2a1',
+      'role': 'comptable',
+      'is_active': 1,
+      'created_at': now,
+    });
+    await db.insert('settings', {'key': 'subscription_plan', 'value': 'pro'});
+    await db.insert('settings', {'key': 'subscription_status', 'value': 'trial'});
+    await db.insert('settings',
+        {'key': 'subscription_end', 'value': DateTime.now().add(const Duration(days: 14)).millisecondsSinceEpoch.toString()});
 
     // Seed companies
     final acmeId = await db.insert('companies', {

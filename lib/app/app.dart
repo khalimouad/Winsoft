@@ -11,6 +11,7 @@ class WinsoftApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    final router = buildRouter(ref);
 
     return MaterialApp.router(
       title: 'WinSoft',
@@ -18,7 +19,7 @@ class WinsoftApp extends ConsumerWidget {
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
       themeMode: themeMode,
-      routerConfig: appRouter,
+      routerConfig: router,
     );
   }
 }
