@@ -18,7 +18,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 3,
+      version: 4,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
@@ -155,6 +155,7 @@ class DatabaseHelper {
 
     await _createNewTables(db);
     await _createPosTables(db);
+    await _createV4Tables(db);
     await _seedData(db);
   }
 
@@ -164,6 +165,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 3) {
       await _createPosTables(db);
+    }
+    if (oldVersion < 4) {
+      await _createV4Tables(db);
     }
   }
 
@@ -445,6 +449,78 @@ class DatabaseHelper {
         unit_price_ht    REAL    NOT NULL DEFAULT 0,
         tva_rate         REAL    NOT NULL DEFAULT 20,
         discount_percent REAL    NOT NULL DEFAULT 0
+      )
+    ''');
+  }
+
+  Future<void> _createV4Tables(Database db) async {
+    // ── Supplier invoice items (the table existed but items sub-table was missing)
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS supplier_invoice_items (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_id    INTEGER NOT NULL REFERENCES supplier_invoices(id) ON DELETE CASCADE,
+        product_id    INTEGER REFERENCES products(id) ON DELETE SET NULL,
+        description   TEXT    NOT NULL,
+        quantity      REAL    NOT NULL DEFAULT 1,
+        unit_price_ht REAL    NOT NULL DEFAULT 0,
+        tva_rate      REAL    NOT NULL DEFAULT 20
+      )
+    ''');
+
+    // ── Credit notes (avoirs) ────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS credit_notes (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        reference   TEXT    NOT NULL UNIQUE,
+        client_id   INTEGER NOT NULL REFERENCES clients(id),
+        invoice_id  INTEGER NOT NULL REFERENCES invoices(id),
+        issue_date  INTEGER NOT NULL,
+        total_ht    REAL    NOT NULL DEFAULT 0,
+        total_tva   REAL    NOT NULL DEFAULT 0,
+        total_ttc   REAL    NOT NULL DEFAULT 0,
+        reason      TEXT,
+        status      TEXT    NOT NULL DEFAULT 'Brouillon',
+        created_at  INTEGER NOT NULL
+      )
+    ''');
+
+    // ── Recurring invoice templates ──────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS recurring_templates (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        name          TEXT    NOT NULL,
+        client_id     INTEGER NOT NULL REFERENCES clients(id),
+        frequency     TEXT    NOT NULL DEFAULT 'monthly',
+        next_due_date INTEGER NOT NULL,
+        total_ht      REAL    NOT NULL DEFAULT 0,
+        total_tva     REAL    NOT NULL DEFAULT 0,
+        total_ttc     REAL    NOT NULL DEFAULT 0,
+        notes         TEXT,
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS recurring_items (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_id   INTEGER NOT NULL REFERENCES recurring_templates(id) ON DELETE CASCADE,
+        description   TEXT    NOT NULL,
+        quantity      REAL    NOT NULL DEFAULT 1,
+        unit_price_ht REAL    NOT NULL DEFAULT 0,
+        tva_rate      REAL    NOT NULL DEFAULT 20
+      )
+    ''');
+
+    // ── Stock movements log ──────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS stock_movements (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        product_id  INTEGER NOT NULL REFERENCES products(id),
+        quantity    REAL    NOT NULL,
+        type        TEXT    NOT NULL,
+        reference   TEXT,
+        date        INTEGER NOT NULL
       )
     ''');
   }

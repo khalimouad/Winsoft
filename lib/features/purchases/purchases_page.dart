@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/supplier.dart';
 import '../../core/models/purchase_order.dart';
+import '../../core/models/supplier_invoice.dart';
 import '../../core/providers/providers.dart';
 import '../../core/utils/morocco_format.dart';
 
@@ -19,7 +20,7 @@ class _PurchasesPageState extends ConsumerState<PurchasesPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -48,6 +49,7 @@ class _PurchasesPageState extends ConsumerState<PurchasesPage>
             tabs: const [
               Tab(text: 'Fournisseurs'),
               Tab(text: 'Bons de commande'),
+              Tab(text: 'Factures fournisseurs'),
             ],
           ),
           Expanded(
@@ -56,6 +58,7 @@ class _PurchasesPageState extends ConsumerState<PurchasesPage>
               children: const [
                 _SuppliersTab(),
                 _PurchaseOrdersTab(),
+                _SupplierInvoicesTab(),
               ],
             ),
           ),
@@ -585,6 +588,238 @@ class _PurchaseOrdersTab extends ConsumerWidget {
                 await ref
                     .read(purchaseOrderProvider.notifier)
                     .add(order);
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              },
+              child: const Text('Créer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Supplier Invoices Tab ─────────────────────────────────────────────────────
+
+class _SupplierInvoicesTab extends ConsumerWidget {
+  const _SupplierInvoicesTab();
+
+  static const _statusColors = {
+    'Reçue':     Colors.blue,
+    'Validée':   Colors.green,
+    'Payée':     Colors.teal,
+    'Contestée': Colors.orange,
+    'Annulée':   Colors.red,
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final invAsync = ref.watch(supplierInvoiceProvider);
+    final suppliersAsync = ref.watch(supplierProvider);
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(children: [
+        Row(children: [
+          const Spacer(),
+          FilledButton.icon(
+            onPressed: () => suppliersAsync.whenData(
+                (suppliers) => _showAddDialog(context, ref, suppliers)),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Nouvelle facture fournisseur'),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        Expanded(
+          child: invAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Erreur: $e')),
+            data: (invoices) {
+              if (invoices.isEmpty) {
+                return const Center(child: Text('Aucune facture fournisseur'));
+              }
+              return ListView.builder(
+                itemCount: invoices.length,
+                itemBuilder: (ctx, i) {
+                  final inv = invoices[i];
+                  final color = _statusColors[inv.status] ?? Colors.grey;
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Row(children: [
+                        Text(inv.reference,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(inv.status,
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: color,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                        if (inv.isOverdue)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Icon(Icons.warning_amber,
+                                size: 16, color: Colors.red.shade700),
+                          ),
+                      ]),
+                      subtitle: Text(
+                          '${inv.supplierName ?? ''} · '
+                          'Émis: ${MoroccoFormat.dateFromMs(inv.issuedDate)} · '
+                          'Échéance: ${MoroccoFormat.dateFromMs(inv.dueDate)}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurfaceVariant)),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(MoroccoFormat.mad(inv.totalTtc),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold)),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert, size: 18),
+                          itemBuilder: (_) => SupplierInvoice.statuses
+                              .map((s) => PopupMenuItem(
+                                  value: s, child: Text(s)))
+                              .toList(),
+                          onSelected: (s) => ref
+                              .read(supplierInvoiceProvider.notifier)
+                              .updateStatus(inv.id!, s),
+                        ),
+                      ]),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+
+  void _showAddDialog(BuildContext context, WidgetRef ref,
+      List<Supplier> suppliers) {
+    if (suppliers.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Ajoutez d\'abord un fournisseur')));
+      return;
+    }
+    int? selectedSupplierId = suppliers.first.id;
+    final refCtrl   = TextEditingController();
+    final descCtrl  = TextEditingController();
+    final htCtrl    = TextEditingController();
+    final tvaCtrl   = TextEditingController(text: '20');
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Nouvelle facture fournisseur'),
+          content: SizedBox(
+            width: 420,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  DropdownButtonFormField<int>(
+                    value: selectedSupplierId,
+                    decoration:
+                        const InputDecoration(labelText: 'Fournisseur *'),
+                    items: suppliers
+                        .map((s) => DropdownMenuItem(
+                            value: s.id, child: Text(s.name)))
+                        .toList(),
+                    onChanged: (v) =>
+                        setState(() => selectedSupplierId = v),
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: refCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'N° facture fournisseur *'),
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Requis' : null,
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: descCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'Description'),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: htCtrl,
+                        decoration:
+                            const InputDecoration(labelText: 'Montant HT *'),
+                        keyboardType: TextInputType.number,
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Requis' : null,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: tvaCtrl,
+                        decoration:
+                            const InputDecoration(labelText: 'TVA %'),
+                        keyboardType: TextInputType.number,
+                      ),
+                    ),
+                  ]),
+                ]),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Annuler')),
+            FilledButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                final ht    = double.tryParse(htCtrl.text) ?? 0;
+                final tvaR  = double.tryParse(tvaCtrl.text) ?? 20;
+                final tva   = ht * tvaR / 100;
+                final repo  = ref.read(supplierInvoiceRepoProvider);
+                final seq   = await repo.nextSequence();
+                final now   = DateTime.now().millisecondsSinceEpoch;
+                final due   = now + const Duration(days: 30).inMilliseconds;
+                final inv   = SupplierInvoice(
+                  reference: refCtrl.text.trim().isEmpty
+                      ? 'FF-${DateTime.now().year}-${seq.toString().padLeft(3, '0')}'
+                      : refCtrl.text.trim(),
+                  supplierId: selectedSupplierId!,
+                  issuedDate: now,
+                  dueDate: due,
+                  totalHt: ht,
+                  totalTva: tva,
+                  totalTtc: ht + tva,
+                  items: descCtrl.text.trim().isEmpty
+                      ? []
+                      : [
+                          SupplierInvoiceItem(
+                            invoiceId: 0,
+                            description: descCtrl.text.trim(),
+                            quantity: 1,
+                            unitPriceHt: ht,
+                            tvaRate: tvaR,
+                          )
+                        ],
+                );
+                await ref
+                    .read(supplierInvoiceProvider.notifier)
+                    .add(inv);
                 if (ctx.mounted) Navigator.of(ctx).pop();
               },
               child: const Text('Créer'),

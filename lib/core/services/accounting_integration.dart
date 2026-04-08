@@ -3,6 +3,7 @@ import '../models/invoice.dart';
 import '../models/purchase_order.dart';
 import '../models/payroll_slip.dart';
 import '../models/pos_sale.dart';
+import '../models/supplier_invoice.dart';
 import '../models/journal_entry.dart';
 import '../repositories/accounting_repository.dart';
 
@@ -129,6 +130,39 @@ class AccountingIntegration {
             label: 'CNSS + AMO', credit: employeeCharges + employerCharges),
         JournalEntryLine(entryId: 0, accountId: etatIgrId,
             label: 'IGR', credit: slip.igr),
+      ],
+    );
+    await _repo.insertEntry(entry);
+  }
+
+  // ── Supplier invoice validated (purchase journal ACH) ────────────────────
+  //  Dr 6121 Achats (HT)
+  //  Dr 3455 TVA récupérable (TVA)
+  //  Cr 4411 Fournisseurs (TTC)
+
+  static Future<void> postSupplierInvoice(SupplierInvoice invoice) async {
+    await _repo.seedPcm();
+    final achatsId = await _accountId('6121');
+    final tvaRecId = await _accountId('3455');
+    final foursId  = await _accountId('4411');
+    if (achatsId == null || tvaRecId == null || foursId == null) return;
+
+    final seq = await _nextSeq();
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    final entry = JournalEntry(
+      reference: 'ACH-${DateTime.now().year}-${seq.toString().padLeft(4, '0')}',
+      date: invoice.issuedDate,
+      description: 'Facture fournisseur ${invoice.reference}',
+      journal: 'ACH',
+      createdAt: now,
+      lines: [
+        JournalEntryLine(entryId: 0, accountId: achatsId,
+            label: invoice.reference, debit: invoice.totalHt),
+        JournalEntryLine(entryId: 0, accountId: tvaRecId,
+            label: 'TVA ${invoice.reference}', debit: invoice.totalTva),
+        JournalEntryLine(entryId: 0, accountId: foursId,
+            label: invoice.reference, credit: invoice.totalTtc),
       ],
     );
     await _repo.insertEntry(entry);

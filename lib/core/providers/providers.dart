@@ -6,6 +6,9 @@ import '../models/sale_order.dart';
 import '../models/invoice.dart';
 import '../models/supplier.dart';
 import '../models/purchase_order.dart';
+import '../models/supplier_invoice.dart';
+import '../models/credit_note.dart';
+import '../models/recurring_template.dart';
 import '../models/employee.dart';
 import '../models/payroll_slip.dart';
 import '../models/journal_entry.dart';
@@ -18,12 +21,16 @@ import '../repositories/sale_order_repository.dart';
 import '../repositories/invoice_repository.dart';
 import '../repositories/supplier_repository.dart';
 import '../repositories/purchase_order_repository.dart';
+import '../repositories/supplier_invoice_repository.dart';
+import '../repositories/credit_note_repository.dart';
+import '../repositories/recurring_repository.dart';
 import '../repositories/employee_repository.dart';
 import '../repositories/accounting_repository.dart';
 import '../repositories/manufacturing_repository.dart';
 import '../repositories/pos_repository.dart';
 import '../repositories/report_repository.dart';
 import '../services/accounting_integration.dart';
+import '../services/stock_service.dart';
 import '../database/database_helper.dart';
 
 // ── Repositories (singletons) ─────────────────────────────────────────────
@@ -180,6 +187,10 @@ class DashboardStats {
   final int orderCount;
   final Map<String, int> invoiceStatusCounts;
   final List<Map<String, dynamic>> revenueByMonth;
+  // Extended
+  final double posRevenueTotal;
+  final double hrMonthlyPayroll;
+  final int lowStockCount;
 
   const DashboardStats({
     required this.totalRevenue,
@@ -189,13 +200,21 @@ class DashboardStats {
     required this.orderCount,
     required this.invoiceStatusCounts,
     required this.revenueByMonth,
+    this.posRevenueTotal = 0,
+    this.hrMonthlyPayroll = 0,
+    this.lowStockCount = 0,
   });
 }
 
 final dashboardProvider = FutureProvider<DashboardStats>((ref) async {
   final invoiceRepo = ref.read(invoiceRepoProvider);
-  final clientRepo = ref.read(clientRepoProvider);
-  final orderRepo = ref.read(saleOrderRepoProvider);
+  final clientRepo  = ref.read(clientRepoProvider);
+  final orderRepo   = ref.read(saleOrderRepoProvider);
+  final db          = DatabaseHelper.instance;
+
+  final now   = DateTime.now();
+  final month = now.month;
+  final year  = now.year;
 
   final results = await Future.wait([
     invoiceRepo.totalRevenue(),
@@ -203,19 +222,30 @@ final dashboardProvider = FutureProvider<DashboardStats>((ref) async {
     invoiceRepo.pendingAmount(),
     invoiceRepo.statusCounts(),
     invoiceRepo.revenueByMonth(6),
+    // POS total revenue
+    db.rawQueryScalar('SELECT COALESCE(SUM(total_ttc),0) FROM pos_sales', []),
+    // HR payroll cost for current month
+    db.rawQueryScalar(
+      'SELECT COALESCE(SUM(salary_net),0) FROM payroll_slips WHERE period_year=? AND period_month=?',
+      [year, month]),
+    // Low stock count
+    StockService.getLowStock(threshold: 5),
   ]);
 
   final clients = await clientRepo.getAll();
-  final orders = await orderRepo.getAll();
+  final orders  = await orderRepo.getAll();
 
   return DashboardStats(
-    totalRevenue: results[0] as double,
-    pendingCount: results[1] as int,
-    pendingAmount: results[2] as double,
-    clientCount: clients.length,
-    orderCount: orders.length,
+    totalRevenue:   results[0] as double,
+    pendingCount:   results[1] as int,
+    pendingAmount:  results[2] as double,
+    clientCount:    clients.length,
+    orderCount:     orders.length,
     invoiceStatusCounts: results[3] as Map<String, int>,
     revenueByMonth: results[4] as List<Map<String, dynamic>>,
+    posRevenueTotal: (results[5] as num?)?.toDouble() ?? 0,
+    hrMonthlyPayroll: (results[6] as num?)?.toDouble() ?? 0,
+    lowStockCount: (results[7] as List).length,
   );
 });
 
@@ -269,11 +299,21 @@ class PurchaseOrderNotifier extends AsyncNotifier<List<PurchaseOrder>> {
 
   Future<void> updateStatus(int id, String status) async {
     await ref.read(purchaseOrderRepoProvider).updateStatus(id, status);
-    // Auto-post to accounting when received
+    // Auto-post to accounting + increment stock when received
     if (status == 'Reçu') {
       final orders = await ref.read(purchaseOrderRepoProvider).getAll();
       final order = orders.where((o) => o.id == id).firstOrNull;
-      if (order != null) AccountingIntegration.postPurchaseReceived(order).ignore();
+      if (order != null) {
+        AccountingIntegration.postPurchaseReceived(order).ignore();
+        // Increment stock for items that have a linked product
+        final items = order.items
+            .where((i) => i.productId != null)
+            .map((i) => {'product_id': i.productId!, 'quantity': i.quantity})
+            .toList();
+        if (items.isNotEmpty) {
+          StockService.incrementForPurchase(order.reference, items).ignore();
+        }
+      }
     }
     ref.invalidateSelf();
   }
@@ -471,6 +511,11 @@ class PosSaleNotifier extends AsyncNotifier<List<PosSale>> {
     final id = await ref.read(posRepoProvider).insertSale(sale);
     // Auto-post to accounting
     AccountingIntegration.postPosSale(sale).ignore();
+    // Decrement stock for each item
+    final items = sale.items
+        .map((i) => {'product_id': i.productId, 'quantity': i.quantity})
+        .toList();
+    StockService.decrementForPosSale(sale.reference, items).ignore();
     ref.invalidateSelf();
     return id;
   }
@@ -482,3 +527,96 @@ final posSaleProvider =
 // ── Reports ───────────────────────────────────────────────────────────────────
 
 final reportRepoProvider = Provider((_) => ReportRepository());
+
+// ── Supplier Invoices ─────────────────────────────────────────────────────────
+
+final supplierInvoiceRepoProvider = Provider((_) => SupplierInvoiceRepository());
+
+class SupplierInvoiceNotifier extends AsyncNotifier<List<SupplierInvoice>> {
+  @override
+  Future<List<SupplierInvoice>> build() =>
+      ref.read(supplierInvoiceRepoProvider).getAll();
+
+  Future<void> add(SupplierInvoice inv) async {
+    await ref.read(supplierInvoiceRepoProvider).insert(inv);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(supplierInvoiceRepoProvider).updateStatus(id, status);
+    // Post to accounting when validated
+    if (status == 'Validée') {
+      final all = await ref.read(supplierInvoiceRepoProvider).getAll();
+      final inv = all.where((i) => i.id == id).firstOrNull;
+      if (inv != null) AccountingIntegration.postSupplierInvoice(inv).ignore();
+    }
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(supplierInvoiceRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final supplierInvoiceProvider =
+    AsyncNotifierProvider<SupplierInvoiceNotifier, List<SupplierInvoice>>(
+        SupplierInvoiceNotifier.new);
+
+// ── Credit Notes ──────────────────────────────────────────────────────────────
+
+final creditNoteRepoProvider = Provider((_) => CreditNoteRepository());
+
+class CreditNoteNotifier extends AsyncNotifier<List<CreditNote>> {
+  @override
+  Future<List<CreditNote>> build() =>
+      ref.read(creditNoteRepoProvider).getAll();
+
+  Future<void> add(CreditNote cn) async {
+    await ref.read(creditNoteRepoProvider).insert(cn);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(creditNoteRepoProvider).updateStatus(id, status);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(creditNoteRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final creditNoteProvider =
+    AsyncNotifierProvider<CreditNoteNotifier, List<CreditNote>>(
+        CreditNoteNotifier.new);
+
+// ── Recurring Templates ───────────────────────────────────────────────────────
+
+final recurringRepoProvider = Provider((_) => RecurringRepository());
+
+class RecurringNotifier extends AsyncNotifier<List<RecurringTemplate>> {
+  @override
+  Future<List<RecurringTemplate>> build() =>
+      ref.read(recurringRepoProvider).getAll();
+
+  Future<void> add(RecurringTemplate t) async {
+    await ref.read(recurringRepoProvider).insert(t);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateNextDue(int id, int nextDueDate) async {
+    await ref.read(recurringRepoProvider).updateNextDue(id, nextDueDate);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(recurringRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final recurringProvider =
+    AsyncNotifierProvider<RecurringNotifier, List<RecurringTemplate>>(
+        RecurringNotifier.new);

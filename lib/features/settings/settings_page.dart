@@ -4,6 +4,7 @@ import '../../app/app.dart';
 import '../../core/database/database_helper.dart';
 import '../../core/providers/providers.dart';
 import '../../core/providers/language_provider.dart';
+import '../../core/services/backup_service.dart';
 import '../../core/utils/morocco_format.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -252,6 +253,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const SizedBox(height: 20),
 
+                // Backup & Restore
+                _BackupSection(),
+                const SizedBox(height: 20),
+
                 // About
                 _Section(
                   title: 'À propos',
@@ -375,5 +380,234 @@ class _InfoRow extends StatelessWidget {
                 ?.copyWith(fontWeight: FontWeight.w500)),
       ]),
     );
+  }
+}
+
+// ── Backup & Restore Section ──────────────────────────────────────────────────
+
+class _BackupSection extends StatefulWidget {
+  @override
+  State<_BackupSection> createState() => _BackupSectionState();
+}
+
+class _BackupSectionState extends State<_BackupSection> {
+  bool _loading = false;
+  String? _lastMessage;
+  final _importPathCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _importPathCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return _Section(
+      title: 'Sauvegarde & Restauration',
+      icon: Icons.backup_outlined,
+      children: [
+        Text(
+          'Exportez toutes vos données dans un fichier JSON, ou restaurez depuis une sauvegarde existante.',
+          style: theme.textTheme.bodyMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 16),
+
+        // Export button
+        Row(children: [
+          FilledButton.icon(
+            onPressed: _loading ? null : _doExport,
+            icon: _loading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.download_outlined, size: 18),
+            label: const Text('Exporter les données'),
+          ),
+          const SizedBox(width: 12),
+          OutlinedButton.icon(
+            onPressed: _loading ? null : _listBackups,
+            icon: const Icon(Icons.folder_open_outlined, size: 18),
+            label: const Text('Voir les sauvegardes'),
+          ),
+        ]),
+
+        if (_lastMessage != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(children: [
+              Icon(Icons.check_circle_outline,
+                  size: 16,
+                  color: theme.colorScheme.onPrimaryContainer),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(_lastMessage!,
+                    style: TextStyle(
+                        fontSize: 12,
+                        color:
+                            theme.colorScheme.onPrimaryContainer)),
+              ),
+            ]),
+          ),
+        ],
+
+        const SizedBox(height: 20),
+        Divider(color: theme.colorScheme.outlineVariant),
+        const SizedBox(height: 12),
+
+        // Import section
+        Text('Restaurer depuis une sauvegarde',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w600)),
+        const SizedBox(height: 8),
+        Text(
+          'Entrez le chemin complet du fichier .json à restaurer. '
+          'Attention : cette opération remplace toutes les données actuelles.',
+          style: theme.textTheme.bodySmall?.copyWith(
+              color: Colors.orange.shade700),
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _importPathCtrl,
+              decoration: InputDecoration(
+                labelText: 'Chemin du fichier de sauvegarde',
+                hintText:
+                    r'C:\Users\...\Documents\WinsoftBackup\winsoft_backup_....json',
+                isDense: true,
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          OutlinedButton.icon(
+            onPressed: _loading ? null : _doImport,
+            style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.red),
+            icon: const Icon(Icons.restore, size: 18),
+            label: const Text('Restaurer'),
+          ),
+        ]),
+      ],
+    );
+  }
+
+  Future<void> _doExport() async {
+    setState(() => _loading = true);
+    try {
+      final path = await BackupService.export();
+      if (mounted) {
+        setState(() {
+          _lastMessage = 'Sauvegarde créée : $path';
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _lastMessage = 'Erreur lors de la sauvegarde : $e';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _listBackups() async {
+    final backups = await BackupService.listBackups();
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sauvegardes disponibles'),
+        content: SizedBox(
+          width: 520,
+          height: 300,
+          child: backups.isEmpty
+              ? const Center(
+                  child: Text('Aucune sauvegarde trouvée'))
+              : ListView.builder(
+                  itemCount: backups.length,
+                  itemBuilder: (_, i) {
+                    final name = backups[i].path.split(
+                        backups[i].path.contains('\\') ? '\\' : '/').last;
+                    return ListTile(
+                      leading: const Icon(
+                          Icons.description_outlined),
+                      title: Text(name,
+                          style: const TextStyle(
+                              fontSize: 13)),
+                      onTap: () {
+                        _importPathCtrl.text =
+                            backups[i].path;
+                        Navigator.of(ctx).pop();
+                      },
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Fermer')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _doImport() async {
+    final path = _importPathCtrl.text.trim();
+    if (path.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Entrez le chemin du fichier de sauvegarde')));
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmer la restauration'),
+        content: const Text(
+            'Cette opération va EFFACER toutes les données actuelles et les remplacer par celles de la sauvegarde. Continuer ?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Annuler')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Restaurer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _loading = true);
+    try {
+      await BackupService.import(path);
+      if (mounted) {
+        setState(() {
+          _lastMessage = 'Restauration réussie depuis : $path';
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _lastMessage = 'Erreur lors de la restauration : $e';
+          _loading = false;
+        });
+      }
+    }
   }
 }

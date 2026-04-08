@@ -35,6 +35,10 @@ dependencies:
   # Unique IDs
   uuid: ^4.5.1
 
+  # PDF generation and printing
+  pdf: ^3.11.1
+  printing: ^5.13.2
+
   # Icons
   cupertino_icons: ^1.0.8
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/providers/providers.dart';
+import '../../core/services/stock_service.dart';
 import '../../core/utils/morocco_format.dart';
 import '../../shared/widgets/stat_card.dart';
 
@@ -49,16 +50,18 @@ class DashboardPage extends ConsumerWidget {
 
               // KPI Cards
               LayoutBuilder(builder: (context, constraints) {
-                final crossAxisCount = constraints.maxWidth > 900
-                    ? 4
-                    : 2;
+                final crossAxisCount = constraints.maxWidth > 1100
+                    ? 6
+                    : constraints.maxWidth > 700
+                        ? 3
+                        : 2;
                 return GridView.count(
                   crossAxisCount: crossAxisCount,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   crossAxisSpacing: 16,
                   mainAxisSpacing: 16,
-                  childAspectRatio: 1.5,
+                  childAspectRatio: 1.6,
                   children: [
                     StatCard(
                       title: 'Chiffre d\'affaires',
@@ -86,6 +89,20 @@ class DashboardPage extends ConsumerWidget {
                       icon: Icons.shopping_cart_outlined,
                       color: const Color(0xFF6A1B9A),
                       subtitle: 'Total cumulé',
+                    ),
+                    StatCard(
+                      title: 'Ventes POS',
+                      value: MoroccoFormat.madInt(stats.posRevenueTotal),
+                      icon: Icons.point_of_sale_outlined,
+                      color: const Color(0xFF00838F),
+                      subtitle: 'Total cumulé',
+                    ),
+                    StatCard(
+                      title: 'Paie du mois',
+                      value: MoroccoFormat.madInt(stats.hrMonthlyPayroll),
+                      icon: Icons.badge_outlined,
+                      color: const Color(0xFFAD1457),
+                      subtitle: 'Net salarié',
                     ),
                   ],
                 );
@@ -118,6 +135,11 @@ class DashboardPage extends ConsumerWidget {
                 ]);
               }),
               const SizedBox(height: 24),
+
+              // Low stock alert
+              if (stats.lowStockCount > 0)
+                _LowStockAlertCard(),
+              const SizedBox(height: 16),
 
               // Recent invoices from real data
               _RecentInvoicesCard(),
@@ -501,6 +523,86 @@ class _StatusChip extends StatelessWidget {
       child: Text(status,
           style: TextStyle(
               color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+    );
+  }
+}
+
+// ── Low stock alert card ──────────────────────────────────────────────────────
+
+class _LowStockAlertCard extends StatefulWidget {
+  @override
+  State<_LowStockAlertCard> createState() => _LowStockAlertCardState();
+}
+
+class _LowStockAlertCardState extends State<_LowStockAlertCard> {
+  List<Map<String, dynamic>> _items = [];
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final items = await StockService.getLowStock(threshold: 5);
+    if (mounted) setState(() { _items = items; _loaded = true; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (!_loaded) return const SizedBox.shrink();
+
+    return Card(
+      color: Colors.orange.shade50,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.orange.shade200),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(Icons.warning_amber_outlined,
+                  color: Colors.orange.shade700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Stock faible — ${_items.length} produit(s) en dessous du seuil',
+                style: theme.textTheme.titleSmall?.copyWith(
+                    color: Colors.orange.shade800,
+                    fontWeight: FontWeight.w600),
+              ),
+            ]),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _items.map((item) {
+                final qty = (item['stock'] as num?)?.toInt() ?? 0;
+                return Chip(
+                  avatar: CircleAvatar(
+                    backgroundColor: Colors.orange.shade100,
+                    child: Text('$qty',
+                        style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.orange.shade800,
+                            fontWeight: FontWeight.bold)),
+                  ),
+                  label: Text(
+                    '${item['name']}'
+                    '${item['reference'] != null ? ' (${item['reference']})' : ''}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  backgroundColor: Colors.orange.shade100,
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

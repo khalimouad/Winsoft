@@ -19,7 +19,7 @@ class _HrPageState extends ConsumerState<HrPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -48,6 +48,7 @@ class _HrPageState extends ConsumerState<HrPage>
             tabs: const [
               Tab(text: 'Employés'),
               Tab(text: 'Paie'),
+              Tab(text: 'Congés'),
             ],
           ),
           Expanded(
@@ -56,6 +57,7 @@ class _HrPageState extends ConsumerState<HrPage>
               children: const [
                 _EmployeesTab(),
                 _PayrollTab(),
+                _LeavesTab(),
               ],
             ),
           ),
@@ -640,5 +642,317 @@ class _PayrollSlipTile extends StatelessWidget {
         ]),
       ),
     );
+  }
+}
+
+// ── Leaves Tab ────────────────────────────────────────────────────────────────
+
+class _LeavesTab extends ConsumerStatefulWidget {
+  const _LeavesTab();
+
+  @override
+  ConsumerState<_LeavesTab> createState() => _LeavesTabState();
+}
+
+class _LeavesTabState extends ConsumerState<_LeavesTab> {
+  static const _types = [
+    'Congé annuel',
+    'Congé maladie',
+    'Congé maternité',
+    'Congé paternité',
+    'Congé sans solde',
+    'Autre',
+  ];
+
+  static const _statuses = ['En attente', 'Approuvé', 'Refusé', 'Annulé'];
+
+  static const _statusColors = {
+    'En attente': Colors.orange,
+    'Approuvé':   Colors.green,
+    'Refusé':     Colors.red,
+    'Annulé':     Colors.grey,
+  };
+
+  String _filterStatus = 'Tous';
+  List<Map<String, dynamic>> _leaves = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLeaves();
+  }
+
+  Future<void> _loadLeaves() async {
+    setState(() => _loading = true);
+    final repo = ref.read(employeeRepoProvider);
+    final rows = await repo.getLeaves();
+    if (mounted) setState(() { _leaves = rows; _loading = false; });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final statuses = ['Tous', ..._statuses];
+
+    final filtered = _filterStatus == 'Tous'
+        ? _leaves
+        : _leaves.where((l) => l['status'] == _filterStatus).toList();
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(children: [
+        Row(children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: statuses.map((s) {
+              final sel = _filterStatus == s;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  label: Text(s),
+                  selected: sel,
+                  showCheckmark: false,
+                  onSelected: (_) =>
+                      setState(() => _filterStatus = s),
+                ),
+              );
+            }).toList()),
+          ),
+          const Spacer(),
+          FilledButton.icon(
+            onPressed: () => _showAddDialog(context),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Nouvelle demande'),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        Expanded(
+          child: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : filtered.isEmpty
+                  ? const Center(
+                      child: Text('Aucune demande de congé'))
+                  : ListView.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (ctx, i) {
+                        final leave = filtered[i];
+                        final status = leave['status'] as String;
+                        final color =
+                            _statusColors[status] ?? Colors.grey;
+                        final start = DateTime.fromMillisecondsSinceEpoch(
+                            leave['start_date'] as int);
+                        final end = DateTime.fromMillisecondsSinceEpoch(
+                            leave['end_date'] as int);
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor:
+                                  color.withValues(alpha: 0.12),
+                              child: Icon(Icons.beach_access_outlined,
+                                  size: 18, color: color),
+                            ),
+                            title: Text(
+                              '${leave['employee_name'] ?? 'Employé'} — ${leave['type']}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: Text(
+                              '${MoroccoFormat.date(start)} → ${MoroccoFormat.date(end)}'
+                              ' · ${leave['days']} jour(s)'
+                              '${leave['reason'] != null && leave['reason'].toString().isNotEmpty ? '\n${leave['reason']}' : ''}',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: theme.colorScheme
+                                      .onSurfaceVariant),
+                            ),
+                            isThreeLine: leave['reason'] != null &&
+                                leave['reason'].toString().isNotEmpty,
+                            trailing: PopupMenuButton<String>(
+                              icon: const Icon(Icons.more_vert,
+                                  size: 18),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color:
+                                      color.withValues(alpha: 0.12),
+                                  borderRadius:
+                                      BorderRadius.circular(12),
+                                ),
+                                child: Text(status,
+                                    style: TextStyle(
+                                        fontSize: 11,
+                                        color: color,
+                                        fontWeight: FontWeight.w600)),
+                              ),
+                              itemBuilder: (_) => _statuses
+                                  .map((s) => PopupMenuItem(
+                                      value: s, child: Text(s)))
+                                  .toList(),
+                              onSelected: (s) async {
+                                await ref
+                                    .read(employeeRepoProvider)
+                                    .updateLeaveStatus(
+                                        leave['id'] as int, s);
+                                await _loadLeaves();
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+        ),
+      ]),
+    );
+  }
+
+  void _showAddDialog(BuildContext context) {
+    final employeesAsync = ref.read(employeeProvider);
+    employeesAsync.whenData((employees) {
+      if (employees.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Aucun employé enregistré')));
+        return;
+      }
+
+      int? selectedEmpId = employees.first.id;
+      String selectedType = _types.first;
+      DateTime startDate = DateTime.now();
+      DateTime endDate   = DateTime.now().add(const Duration(days: 5));
+      final reasonCtrl = TextEditingController();
+      final formKey = GlobalKey<FormState>();
+
+      showDialog(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setState) => AlertDialog(
+            title: const Text('Demande de congé'),
+            content: SizedBox(
+              width: 420,
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                    DropdownButtonFormField<int>(
+                      value: selectedEmpId,
+                      decoration: const InputDecoration(
+                          labelText: 'Employé *'),
+                      items: employees
+                          .map((e) => DropdownMenuItem(
+                              value: e.id,
+                              child: Text(e.name)))
+                          .toList(),
+                      onChanged: (v) =>
+                          setState(() => selectedEmpId = v),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: selectedType,
+                      decoration: const InputDecoration(
+                          labelText: 'Type *'),
+                      items: _types
+                          .map((t) => DropdownMenuItem(
+                              value: t, child: Text(t)))
+                          .toList(),
+                      onChanged: (v) =>
+                          setState(() => selectedType = v!),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                            final d = await showDatePicker(
+                              context: ctx,
+                              initialDate: startDate,
+                              firstDate: DateTime(2020),
+                              lastDate: DateTime(2030),
+                            );
+                            if (d != null) {
+                              setState(() => startDate = d);
+                            }
+                          },
+                          child: InputDecorator(
+                            decoration: const InputDecoration(
+                                labelText: 'Début',
+                                suffixIcon: Icon(
+                                    Icons.calendar_today_outlined,
+                                    size: 16)),
+                            child: Text(MoroccoFormat.date(startDate),
+                                style: const TextStyle(fontSize: 14)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () async {
+                            final d = await showDatePicker(
+                              context: ctx,
+                              initialDate: endDate,
+                              firstDate: startDate,
+                              lastDate: DateTime(2030),
+                            );
+                            if (d != null) {
+                              setState(() => endDate = d);
+                            }
+                          },
+                          child: InputDecorator(
+                            decoration: const InputDecoration(
+                                labelText: 'Fin',
+                                suffixIcon: Icon(
+                                    Icons.calendar_today_outlined,
+                                    size: 16)),
+                            child: Text(MoroccoFormat.date(endDate),
+                                style: const TextStyle(fontSize: 14)),
+                          ),
+                        ),
+                      ),
+                    ]),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: reasonCtrl,
+                      decoration: const InputDecoration(
+                          labelText: 'Motif (optionnel)'),
+                      maxLines: 2,
+                    ),
+                  ]),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Annuler')),
+              FilledButton(
+                onPressed: () async {
+                  if (!formKey.currentState!.validate()) return;
+                  final days = endDate.difference(startDate).inDays + 1;
+                  await ref.read(employeeRepoProvider).insertLeave({
+                    'employee_id': selectedEmpId!,
+                    'type': selectedType,
+                    'start_date':
+                        startDate.millisecondsSinceEpoch,
+                    'end_date': endDate.millisecondsSinceEpoch,
+                    'days': days.toDouble(),
+                    'status': 'En attente',
+                    'reason': reasonCtrl.text.trim().isEmpty
+                        ? null
+                        : reasonCtrl.text.trim(),
+                  });
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                  await _loadLeaves();
+                },
+                child: const Text('Soumettre'),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
   }
 }
