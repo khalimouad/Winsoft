@@ -18,8 +18,9 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 1,
+      version: 2,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
     );
   }
@@ -152,7 +153,225 @@ class DatabaseHelper {
       )
     ''');
 
+    await _createNewTables(db);
     await _seedData(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _createNewTables(db);
+    }
+  }
+
+  Future<void> _createNewTables(Database db) async {
+    // ── Suppliers ────────────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS suppliers (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT    NOT NULL,
+        email      TEXT,
+        phone      TEXT,
+        address    TEXT,
+        city       TEXT,
+        ice        TEXT,
+        rc         TEXT,
+        if_number  TEXT,
+        patente    TEXT,
+        rib        TEXT,
+        notes      TEXT,
+        status     TEXT    NOT NULL DEFAULT 'Actif',
+        created_at INTEGER NOT NULL
+      )
+    ''');
+
+    // ── Purchase orders ──────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS purchase_orders (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        reference   TEXT    NOT NULL UNIQUE,
+        supplier_id INTEGER NOT NULL REFERENCES suppliers(id),
+        date        INTEGER NOT NULL,
+        status      TEXT    NOT NULL DEFAULT 'Brouillon',
+        notes       TEXT,
+        total_ht    REAL    NOT NULL DEFAULT 0,
+        total_tva   REAL    NOT NULL DEFAULT 0,
+        total_ttc   REAL    NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS purchase_order_items (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id      INTEGER NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+        product_id    INTEGER REFERENCES products(id) ON DELETE SET NULL,
+        description   TEXT    NOT NULL,
+        quantity      REAL    NOT NULL DEFAULT 1,
+        unit_price_ht REAL    NOT NULL DEFAULT 0,
+        tva_rate      REAL    NOT NULL DEFAULT 20,
+        received_qty  REAL    NOT NULL DEFAULT 0
+      )
+    ''');
+
+    // ── Supplier invoices ────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS supplier_invoices (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        reference     TEXT    NOT NULL,
+        supplier_id   INTEGER NOT NULL REFERENCES suppliers(id),
+        order_id      INTEGER REFERENCES purchase_orders(id) ON DELETE SET NULL,
+        issued_date   INTEGER NOT NULL,
+        due_date      INTEGER NOT NULL,
+        status        TEXT    NOT NULL DEFAULT 'Reçue',
+        notes         TEXT,
+        total_ht      REAL    NOT NULL DEFAULT 0,
+        total_tva     REAL    NOT NULL DEFAULT 0,
+        total_ttc     REAL    NOT NULL DEFAULT 0
+      )
+    ''');
+
+    // ── HR: Employees ────────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS employees (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        name          TEXT    NOT NULL,
+        email         TEXT,
+        phone         TEXT,
+        cin           TEXT,
+        cnss_num      TEXT,
+        department    TEXT,
+        position      TEXT,
+        salary_brut   REAL    NOT NULL DEFAULT 0,
+        hire_date     INTEGER NOT NULL,
+        birth_date    INTEGER,
+        address       TEXT,
+        city          TEXT,
+        rib           TEXT,
+        is_active     INTEGER NOT NULL DEFAULT 1,
+        created_at    INTEGER NOT NULL
+      )
+    ''');
+
+    // ── HR: Payroll slips ────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS payroll_slips (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_id    INTEGER NOT NULL REFERENCES employees(id),
+        period_year    INTEGER NOT NULL,
+        period_month   INTEGER NOT NULL,
+        salary_brut    REAL    NOT NULL DEFAULT 0,
+        cnss_employee  REAL    NOT NULL DEFAULT 0,
+        amo_employee   REAL    NOT NULL DEFAULT 0,
+        igr            REAL    NOT NULL DEFAULT 0,
+        other_deductions REAL  NOT NULL DEFAULT 0,
+        salary_net     REAL    NOT NULL DEFAULT 0,
+        cnss_employer  REAL    NOT NULL DEFAULT 0,
+        amo_employer   REAL    NOT NULL DEFAULT 0,
+        status         TEXT    NOT NULL DEFAULT 'Brouillon',
+        notes          TEXT,
+        created_at     INTEGER NOT NULL,
+        UNIQUE(employee_id, period_year, period_month)
+      )
+    ''');
+
+    // ── HR: Leaves ───────────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS leaves (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_id INTEGER NOT NULL REFERENCES employees(id),
+        type        TEXT    NOT NULL DEFAULT 'Congé annuel',
+        start_date  INTEGER NOT NULL,
+        end_date    INTEGER NOT NULL,
+        days        REAL    NOT NULL DEFAULT 1,
+        status      TEXT    NOT NULL DEFAULT 'En attente',
+        reason      TEXT,
+        created_at  INTEGER NOT NULL
+      )
+    ''');
+
+    // ── Accounting: Chart of accounts (PCM) ──────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS account_chart (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        code        TEXT    NOT NULL UNIQUE,
+        label       TEXT    NOT NULL,
+        class_num   INTEGER NOT NULL,
+        type        TEXT    NOT NULL DEFAULT 'bilan',
+        is_active   INTEGER NOT NULL DEFAULT 1
+      )
+    ''');
+
+    // ── Accounting: Journal entries ──────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS journal_entries (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        reference   TEXT    NOT NULL UNIQUE,
+        date        INTEGER NOT NULL,
+        description TEXT,
+        journal     TEXT    NOT NULL DEFAULT 'OD',
+        is_validated INTEGER NOT NULL DEFAULT 0,
+        created_at  INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS journal_entry_lines (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        entry_id    INTEGER NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
+        account_id  INTEGER NOT NULL REFERENCES account_chart(id),
+        label       TEXT,
+        debit       REAL    NOT NULL DEFAULT 0,
+        credit      REAL    NOT NULL DEFAULT 0
+      )
+    ''');
+
+    // ── Manufacturing: BOM ───────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS manufacturing_boms (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT    NOT NULL,
+        description TEXT,
+        is_active   INTEGER NOT NULL DEFAULT 1,
+        created_at  INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS bom_components (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        bom_id      INTEGER NOT NULL REFERENCES manufacturing_boms(id) ON DELETE CASCADE,
+        product_id  INTEGER NOT NULL REFERENCES products(id),
+        quantity    REAL    NOT NULL DEFAULT 1,
+        unit        TEXT,
+        role        TEXT    NOT NULL DEFAULT 'input',
+        notes       TEXT
+      )
+    ''');
+
+    // ── Manufacturing: Production orders ──────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS production_orders (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        reference    TEXT    NOT NULL UNIQUE,
+        bom_id       INTEGER NOT NULL REFERENCES manufacturing_boms(id),
+        planned_date INTEGER NOT NULL,
+        start_date   INTEGER,
+        end_date     INTEGER,
+        status       TEXT    NOT NULL DEFAULT 'Brouillon',
+        notes        TEXT,
+        created_at   INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS production_order_outputs (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        production_order_id INTEGER NOT NULL REFERENCES production_orders(id) ON DELETE CASCADE,
+        product_id          INTEGER NOT NULL REFERENCES products(id),
+        planned_qty         REAL    NOT NULL DEFAULT 0,
+        actual_qty          REAL    NOT NULL DEFAULT 0,
+        role                TEXT    NOT NULL DEFAULT 'output'
+      )
+    ''');
   }
 
   Future<void> _seedData(Database db) async {

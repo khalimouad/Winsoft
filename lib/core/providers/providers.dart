@@ -4,11 +4,22 @@ import '../models/client.dart';
 import '../models/product.dart';
 import '../models/sale_order.dart';
 import '../models/invoice.dart';
+import '../models/supplier.dart';
+import '../models/purchase_order.dart';
+import '../models/employee.dart';
+import '../models/payroll_slip.dart';
+import '../models/journal_entry.dart';
+import '../models/manufacturing_bom.dart';
 import '../repositories/company_repository.dart';
 import '../repositories/client_repository.dart';
 import '../repositories/product_repository.dart';
 import '../repositories/sale_order_repository.dart';
 import '../repositories/invoice_repository.dart';
+import '../repositories/supplier_repository.dart';
+import '../repositories/purchase_order_repository.dart';
+import '../repositories/employee_repository.dart';
+import '../repositories/accounting_repository.dart';
+import '../repositories/manufacturing_repository.dart';
 import '../database/database_helper.dart';
 
 // ── Repositories (singletons) ─────────────────────────────────────────────
@@ -207,3 +218,205 @@ final dashboardProvider = FutureProvider<DashboardStats>((ref) async {
 final settingsProvider = FutureProvider<Map<String, String>>((ref) async {
   return DatabaseHelper.instance.getAllSettings();
 });
+
+// ── Suppliers ─────────────────────────────────────────────────────────────
+
+final supplierRepoProvider = Provider((_) => SupplierRepository());
+
+class SupplierNotifier extends AsyncNotifier<List<Supplier>> {
+  @override
+  Future<List<Supplier>> build() => ref.read(supplierRepoProvider).getAll();
+
+  Future<void> add(Supplier s) async {
+    await ref.read(supplierRepoProvider).insert(s);
+    ref.invalidateSelf();
+  }
+
+  Future<void> edit(Supplier s) async {
+    await ref.read(supplierRepoProvider).update(s);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(supplierRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final supplierProvider =
+    AsyncNotifierProvider<SupplierNotifier, List<Supplier>>(
+        SupplierNotifier.new);
+
+// ── Purchase Orders ───────────────────────────────────────────────────────
+
+final purchaseOrderRepoProvider = Provider((_) => PurchaseOrderRepository());
+
+class PurchaseOrderNotifier extends AsyncNotifier<List<PurchaseOrder>> {
+  @override
+  Future<List<PurchaseOrder>> build() =>
+      ref.read(purchaseOrderRepoProvider).getAll();
+
+  Future<void> add(PurchaseOrder order) async {
+    await ref.read(purchaseOrderRepoProvider).insert(order);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(purchaseOrderRepoProvider).updateStatus(id, status);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(purchaseOrderRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final purchaseOrderProvider =
+    AsyncNotifierProvider<PurchaseOrderNotifier, List<PurchaseOrder>>(
+        PurchaseOrderNotifier.new);
+
+// ── Employees ─────────────────────────────────────────────────────────────
+
+final employeeRepoProvider = Provider((_) => EmployeeRepository());
+
+class EmployeeNotifier extends AsyncNotifier<List<Employee>> {
+  @override
+  Future<List<Employee>> build() => ref.read(employeeRepoProvider).getAll();
+
+  Future<void> add(Employee e) async {
+    await ref.read(employeeRepoProvider).insert(e);
+    ref.invalidateSelf();
+  }
+
+  Future<void> edit(Employee e) async {
+    await ref.read(employeeRepoProvider).update(e);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(employeeRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final employeeProvider =
+    AsyncNotifierProvider<EmployeeNotifier, List<Employee>>(
+        EmployeeNotifier.new);
+
+// ── Payroll ───────────────────────────────────────────────────────────────
+
+class PayrollNotifier extends AsyncNotifier<List<PayrollSlip>> {
+  @override
+  Future<List<PayrollSlip>> build() =>
+      ref.read(employeeRepoProvider).getPayrollSlips();
+
+  Future<void> add(PayrollSlip slip) async {
+    await ref.read(employeeRepoProvider).insertPayrollSlip(slip);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(employeeRepoProvider).updatePayrollStatus(id, status);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(employeeRepoProvider).deletePayrollSlip(id);
+    ref.invalidateSelf();
+  }
+}
+
+final payrollProvider =
+    AsyncNotifierProvider<PayrollNotifier, List<PayrollSlip>>(
+        PayrollNotifier.new);
+
+// ── Accounting ────────────────────────────────────────────────────────────
+
+final accountingRepoProvider = Provider((_) => AccountingRepository());
+
+class AccountChartNotifier extends AsyncNotifier<List<AccountChart>> {
+  @override
+  Future<List<AccountChart>> build() async {
+    final repo = ref.read(accountingRepoProvider);
+    await repo.seedPcm();
+    return repo.getAccounts();
+  }
+}
+
+final accountChartProvider =
+    AsyncNotifierProvider<AccountChartNotifier, List<AccountChart>>(
+        AccountChartNotifier.new);
+
+class JournalEntryNotifier extends AsyncNotifier<List<JournalEntry>> {
+  @override
+  Future<List<JournalEntry>> build() =>
+      ref.read(accountingRepoProvider).getEntries();
+
+  Future<void> add(JournalEntry entry) async {
+    await ref.read(accountingRepoProvider).insertEntry(entry);
+    ref.invalidateSelf();
+  }
+
+  Future<void> validate(int id) async {
+    await ref.read(accountingRepoProvider).validateEntry(id);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(accountingRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final journalEntryProvider =
+    AsyncNotifierProvider<JournalEntryNotifier, List<JournalEntry>>(
+        JournalEntryNotifier.new);
+
+// ── Manufacturing ─────────────────────────────────────────────────────────
+
+final manufacturingRepoProvider = Provider((_) => ManufacturingRepository());
+
+class BomNotifier extends AsyncNotifier<List<ManufacturingBom>> {
+  @override
+  Future<List<ManufacturingBom>> build() =>
+      ref.read(manufacturingRepoProvider).getAllBoms();
+
+  Future<void> add(ManufacturingBom bom) async {
+    await ref.read(manufacturingRepoProvider).insertBom(bom);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(manufacturingRepoProvider).deleteBom(id);
+    ref.invalidateSelf();
+  }
+}
+
+final bomProvider =
+    AsyncNotifierProvider<BomNotifier, List<ManufacturingBom>>(BomNotifier.new);
+
+class ProductionOrderNotifier extends AsyncNotifier<List<ProductionOrder>> {
+  @override
+  Future<List<ProductionOrder>> build() =>
+      ref.read(manufacturingRepoProvider).getAllOrders();
+
+  Future<void> add(ProductionOrder order) async {
+    await ref.read(manufacturingRepoProvider).insertOrder(order);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(manufacturingRepoProvider).updateOrderStatus(id, status);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(manufacturingRepoProvider).deleteOrder(id);
+    ref.invalidateSelf();
+  }
+}
+
+final productionOrderProvider =
+    AsyncNotifierProvider<ProductionOrderNotifier, List<ProductionOrder>>(
+        ProductionOrderNotifier.new);

@@ -9,6 +9,10 @@ import '../features/clients/clients_page.dart';
 import '../features/products/products_page.dart';
 import '../features/sales/sales_page.dart';
 import '../features/invoices/invoices_page.dart';
+import '../features/purchases/purchases_page.dart';
+import '../features/hr/hr_page.dart';
+import '../features/accounting/accounting_page.dart';
+import '../features/manufacturing/manufacturing_page.dart';
 import '../features/team/team_page.dart';
 import '../features/subscription/subscription_page.dart';
 import '../features/settings/settings_page.dart';
@@ -80,6 +84,26 @@ GoRouter buildRouter(WidgetRef ref) {
                 const NoTransitionPage(child: InvoicesPage()),
           ),
           GoRoute(
+            path: '/purchases',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: PurchasesPage()),
+          ),
+          GoRoute(
+            path: '/hr',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: HrPage()),
+          ),
+          GoRoute(
+            path: '/accounting',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: AccountingPage()),
+          ),
+          GoRoute(
+            path: '/manufacturing',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ManufacturingPage()),
+          ),
+          GoRoute(
             path: '/team',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: TeamPage()),
@@ -100,7 +124,7 @@ GoRouter buildRouter(WidgetRef ref) {
   );
 }
 
-// ── Navigation destinations ───────────────────────────────────────────────
+// ── Navigation destinations ───────────────────────────────────────────────────
 
 class NavDestination {
   const NavDestination({
@@ -115,7 +139,7 @@ class NavDestination {
   final Widget icon;
   final Widget selectedIcon;
   final String route;
-  final String? groupLabel; // section header in sidebar
+  final String? groupLabel;
 }
 
 const List<NavDestination> appDestinations = [
@@ -147,6 +171,19 @@ const List<NavDestination> appDestinations = [
     groupLabel: 'VENTES',
   ),
   NavDestination(
+    label: 'Factures Clients',
+    icon: Icon(Icons.receipt_long_outlined),
+    selectedIcon: Icon(Icons.receipt_long),
+    route: '/invoices',
+  ),
+  NavDestination(
+    label: 'Achats',
+    icon: Icon(Icons.shopping_bag_outlined),
+    selectedIcon: Icon(Icons.shopping_bag),
+    route: '/purchases',
+    groupLabel: 'ACHATS',
+  ),
+  NavDestination(
     label: 'Produits & Services',
     icon: Icon(Icons.inventory_2_outlined),
     selectedIcon: Icon(Icons.inventory_2),
@@ -154,11 +191,24 @@ const List<NavDestination> appDestinations = [
     groupLabel: 'INVENTAIRE',
   ),
   NavDestination(
-    label: 'Factures Clients',
-    icon: Icon(Icons.receipt_long_outlined),
-    selectedIcon: Icon(Icons.receipt_long),
-    route: '/invoices',
-    groupLabel: 'FACTURATION',
+    label: 'Production',
+    icon: Icon(Icons.precision_manufacturing_outlined),
+    selectedIcon: Icon(Icons.precision_manufacturing),
+    route: '/manufacturing',
+  ),
+  NavDestination(
+    label: 'Ressources Humaines',
+    icon: Icon(Icons.badge_outlined),
+    selectedIcon: Icon(Icons.badge),
+    route: '/hr',
+    groupLabel: 'RH',
+  ),
+  NavDestination(
+    label: 'Comptabilité',
+    icon: Icon(Icons.account_balance_outlined),
+    selectedIcon: Icon(Icons.account_balance),
+    route: '/accounting',
+    groupLabel: 'FINANCE',
   ),
   NavDestination(
     label: 'Équipe',

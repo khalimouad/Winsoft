@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app.dart';
 import '../../core/database/database_helper.dart';
 import '../../core/providers/providers.dart';
+import '../../core/providers/language_provider.dart';
 import '../../core/utils/morocco_format.dart';
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -166,9 +167,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Appearance
+                // Appearance & Language
                 _Section(
-                  title: 'Apparence',
+                  title: 'Apparence & Langue',
                   icon: Icons.palette_outlined,
                   children: [
                     Row(
@@ -201,6 +202,51 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           },
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    Consumer(
+                      builder: (ctx, ref, _) {
+                        final langAsync = ref.watch(languageProvider);
+                        final currentLang = langAsync.maybeWhen(
+                            data: (l) => l, orElse: () => 'fr');
+                        return Row(
+                          mainAxisAlignment:
+                              MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                Text('Langue / اللغة / Language',
+                                    style: theme.textTheme.bodyLarge
+                                        ?.copyWith(
+                                            fontWeight:
+                                                FontWeight.w500)),
+                                Text(
+                                    'Interface en Français, العربية ou English',
+                                    style: theme.textTheme.bodySmall
+                                        ?.copyWith(
+                                            color: theme.colorScheme
+                                                .onSurfaceVariant)),
+                              ],
+                            ),
+                            SegmentedButton<String>(
+                              segments: const [
+                                ButtonSegment(
+                                    value: 'fr', label: Text('FR')),
+                                ButtonSegment(
+                                    value: 'ar', label: Text('ع')),
+                                ButtonSegment(
+                                    value: 'en', label: Text('EN')),
+                              ],
+                              selected: {currentLang},
+                              onSelectionChanged: (sel) => ref
+                                  .read(languageProvider.notifier)
+                                  .setLanguage(sel.first),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ],
                 ),
