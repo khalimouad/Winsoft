@@ -18,7 +18,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 4,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
@@ -156,6 +156,7 @@ class DatabaseHelper {
     await _createNewTables(db);
     await _createPosTables(db);
     await _createV4Tables(db);
+    await _createV5Tables(db);
     await _seedData(db);
   }
 
@@ -168,6 +169,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 4) {
       await _createV4Tables(db);
+    }
+    if (oldVersion < 5) {
+      await _createV5Tables(db);
     }
   }
 
@@ -523,6 +527,36 @@ class DatabaseHelper {
         date        INTEGER NOT NULL
       )
     ''');
+  }
+
+  Future<void> _createV5Tables(Database db) async {
+    // ── Extra Moroccan fields on clients ────────────────────────────────────
+    for (final col in [
+      'rc            TEXT',
+      'if_number     TEXT',
+      'patente       TEXT',
+      'cnss_num      TEXT',
+      'rib           TEXT',
+      'forme_juridique TEXT',
+    ]) {
+      try {
+        await db.execute('ALTER TABLE clients ADD COLUMN $col');
+      } catch (_) {} // column may already exist on fresh installs
+    }
+
+    // ── Extra Moroccan fields on companies ──────────────────────────────────
+    for (final col in [
+      'fax           TEXT',
+      'website       TEXT',
+      'cnss_employeur TEXT',
+      'numero_tva    TEXT',
+      'rib           TEXT',
+      'forme_juridique TEXT',
+    ]) {
+      try {
+        await db.execute('ALTER TABLE companies ADD COLUMN $col');
+      } catch (_) {}
+    }
   }
 
   Future<void> _seedData(Database db) async {

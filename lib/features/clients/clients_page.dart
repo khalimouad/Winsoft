@@ -204,84 +204,105 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
 
   void _showDialog(BuildContext context, List companies,
       {Client? client}) {
-    final nameCtrl = TextEditingController(text: client?.name ?? '');
-    final emailCtrl =
-        TextEditingController(text: client?.email ?? '');
-    final phoneCtrl =
-        TextEditingController(text: client?.phone ?? '');
-    final addressCtrl =
-        TextEditingController(text: client?.address ?? '');
-    final cinCtrl = TextEditingController(text: client?.cin ?? '');
-    final iceCtrl = TextEditingController(text: client?.ice ?? '');
+    final nameCtrl    = TextEditingController(text: client?.name ?? '');
+    final emailCtrl   = TextEditingController(text: client?.email ?? '');
+    final phoneCtrl   = TextEditingController(text: client?.phone ?? '');
+    final addressCtrl = TextEditingController(text: client?.address ?? '');
+    final notesCtrl   = TextEditingController(text: client?.notes ?? '');
+    // Moroccan identity
+    final cinCtrl     = TextEditingController(text: client?.cin ?? '');
+    final iceCtrl     = TextEditingController(text: client?.ice ?? '');
+    final rcCtrl      = TextEditingController(text: client?.rc ?? '');
+    final ifCtrl      = TextEditingController(text: client?.ifNumber ?? '');
+    final patenteCtrl = TextEditingController(text: client?.patente ?? '');
+    final cnssCtrl    = TextEditingController(text: client?.cnssNum ?? '');
+    final ribCtrl     = TextEditingController(text: client?.rib ?? '');
     String selectedCity = client?.city ?? MoroccoFormat.cities.first;
     int? selectedCompanyId = client?.companyId;
+    String? selectedForme = client?.formeJuridique;
+
+    const formes = ['—', 'SARL', 'SA', 'SNC', 'SCS', 'Auto-entrepreneur', 'Personne physique'];
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title: Text(client == null ? 'Nouveau client' : 'Modifier'),
+        builder: (ctx, setS) => AlertDialog(
+          title: Text(client == null ? 'Nouveau client' : 'Modifier client'),
           content: SizedBox(
-            width: 480,
+            width: 520,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextField(
-                      controller: nameCtrl,
-                      decoration:
-                          const InputDecoration(labelText: 'Nom complet *')),
+                  // ── Informations générales ──────────────────────────────
+                  _sectionLabel(ctx, 'Informations générales'),
+                  _field(nameCtrl, 'Nom complet *'),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int?>(
                     value: selectedCompanyId,
-                    decoration:
-                        const InputDecoration(labelText: 'Entreprise'),
+                    decoration: const InputDecoration(labelText: 'Entreprise liée'),
                     items: [
-                      const DropdownMenuItem(
-                          value: null, child: Text('— Aucune —')),
+                      const DropdownMenuItem(value: null, child: Text('— Aucune —')),
                       ...companies.map((co) => DropdownMenuItem(
                           value: co.id, child: Text(co.name))),
                     ],
-                    onChanged: (v) =>
-                        setState(() => selectedCompanyId = v),
+                    onChanged: (v) => setS(() => selectedCompanyId = v),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                      controller: emailCtrl,
-                      decoration:
-                          const InputDecoration(labelText: 'Email')),
+                  _field(emailCtrl, 'Email'),
                   const SizedBox(height: 12),
-                  TextField(
-                      controller: phoneCtrl,
-                      decoration: const InputDecoration(
-                          labelText: 'Téléphone')),
+                  _field(phoneCtrl, 'Téléphone'),
                   const SizedBox(height: 12),
-                  TextField(
-                      controller: addressCtrl,
-                      decoration:
-                          const InputDecoration(labelText: 'Adresse')),
+                  _field(addressCtrl, 'Adresse'),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedCity,
-                    decoration:
-                        const InputDecoration(labelText: 'Ville'),
+                    decoration: const InputDecoration(labelText: 'Ville'),
                     items: MoroccoFormat.cities
-                        .map((c) => DropdownMenuItem(
-                            value: c, child: Text(c)))
+                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                         .toList(),
-                    onChanged: (v) =>
-                        setState(() => selectedCity = v!),
+                    onChanged: (v) => setS(() => selectedCity = v!),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Identité & Statut juridique ─────────────────────────
+                  _sectionLabel(ctx, 'Identité & Statut juridique'),
+                  DropdownButtonFormField<String?>(
+                    value: selectedForme,
+                    decoration: const InputDecoration(labelText: 'Forme juridique'),
+                    items: formes
+                        .map((f) => DropdownMenuItem(
+                            value: f == '—' ? null : f,
+                            child: Text(f)))
+                        .toList(),
+                    onChanged: (v) => setS(() => selectedForme = v),
                   ),
                   const SizedBox(height: 12),
-                  TextField(
-                      controller: cinCtrl,
-                      decoration:
-                          const InputDecoration(labelText: 'CIN')),
+                  _field(cinCtrl, 'CIN (Carte d\'Identité Nationale)'),
+                  const SizedBox(height: 20),
+
+                  // ── Identifiants fiscaux marocains ──────────────────────
+                  _sectionLabel(ctx, 'Identifiants fiscaux'),
+                  _field(iceCtrl, 'ICE (15 chiffres)'),
                   const SizedBox(height: 12),
-                  TextField(
-                      controller: iceCtrl,
-                      decoration:
-                          const InputDecoration(labelText: 'ICE')),
+                  _field(rcCtrl, 'RC (Registre de Commerce)'),
+                  const SizedBox(height: 12),
+                  _field(ifCtrl, 'IF (Identifiant Fiscal)'),
+                  const SizedBox(height: 12),
+                  _field(patenteCtrl, 'Patente'),
+                  const SizedBox(height: 12),
+                  _field(cnssCtrl, 'N° CNSS'),
+                  const SizedBox(height: 20),
+
+                  // ── Coordonnées bancaires ───────────────────────────────
+                  _sectionLabel(ctx, 'Coordonnées bancaires'),
+                  _field(ribCtrl, 'RIB / IBAN'),
+                  const SizedBox(height: 20),
+
+                  // ── Notes ───────────────────────────────────────────────
+                  _sectionLabel(ctx, 'Notes'),
+                  _field(notesCtrl, 'Notes internes', maxLines: 3),
                 ],
               ),
             ),
@@ -298,22 +319,19 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                   id: client?.id,
                   name: nameCtrl.text.trim(),
                   companyId: selectedCompanyId,
-                  email: emailCtrl.text.trim().isEmpty
-                      ? null
-                      : emailCtrl.text.trim(),
-                  phone: phoneCtrl.text.trim().isEmpty
-                      ? null
-                      : phoneCtrl.text.trim(),
-                  address: addressCtrl.text.trim().isEmpty
-                      ? null
-                      : addressCtrl.text.trim(),
+                  email: _nullIfEmpty(emailCtrl.text),
+                  phone: _nullIfEmpty(phoneCtrl.text),
+                  address: _nullIfEmpty(addressCtrl.text),
                   city: selectedCity,
-                  cin: cinCtrl.text.trim().isEmpty
-                      ? null
-                      : cinCtrl.text.trim(),
-                  ice: iceCtrl.text.trim().isEmpty
-                      ? null
-                      : iceCtrl.text.trim(),
+                  cin: _nullIfEmpty(cinCtrl.text),
+                  ice: _nullIfEmpty(iceCtrl.text),
+                  rc: _nullIfEmpty(rcCtrl.text),
+                  ifNumber: _nullIfEmpty(ifCtrl.text),
+                  patente: _nullIfEmpty(patenteCtrl.text),
+                  cnssNum: _nullIfEmpty(cnssCtrl.text),
+                  rib: _nullIfEmpty(ribCtrl.text),
+                  formeJuridique: selectedForme,
+                  notes: _nullIfEmpty(notesCtrl.text),
                   createdAt: client?.createdAt ?? now,
                 );
                 if (client == null) {
@@ -330,4 +348,21 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
       ),
     );
   }
+
+  String? _nullIfEmpty(String v) => v.trim().isEmpty ? null : v.trim();
+
+  Widget _sectionLabel(BuildContext ctx, String label) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(label,
+            style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
+                color: Theme.of(ctx).colorScheme.primary,
+                fontWeight: FontWeight.w700)),
+      );
+
+  Widget _field(TextEditingController ctrl, String label, {int maxLines = 1}) =>
+      TextField(
+        controller: ctrl,
+        maxLines: maxLines,
+        decoration: InputDecoration(labelText: label),
+      );
 }

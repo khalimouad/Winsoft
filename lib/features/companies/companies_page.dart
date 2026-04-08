@@ -98,6 +98,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                         ),
                         columns: const [
                           DataColumn(label: Text('ENTREPRISE')),
+                          DataColumn(label: Text('FORME')),
                           DataColumn(label: Text('SECTEUR')),
                           DataColumn(label: Text('VILLE')),
                           DataColumn(label: Text('ICE')),
@@ -124,6 +125,10 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                                         style: const TextStyle(
                                             fontWeight: FontWeight.w500)),
                                   ])),
+                                  DataCell(Text(c.formeJuridique ?? '—',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: theme.colorScheme.onSurfaceVariant))),
                                   DataCell(Text(c.industry ?? '—')),
                                   DataCell(Text(c.city ?? '—')),
                                   DataCell(Text(c.ice ?? '—',
@@ -194,65 +199,132 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
   }
 
   void _showDialog(BuildContext context, {Company? company}) {
-    final nameCtrl =
-        TextEditingController(text: company?.name ?? '');
-    final industryCtrl =
-        TextEditingController(text: company?.industry ?? '');
-    final emailCtrl =
-        TextEditingController(text: company?.email ?? '');
-    final phoneCtrl =
-        TextEditingController(text: company?.phone ?? '');
-    final addressCtrl =
-        TextEditingController(text: company?.address ?? '');
-    final iceCtrl = TextEditingController(text: company?.ice ?? '');
-    final rcCtrl = TextEditingController(text: company?.rc ?? '');
-    final ifCtrl =
-        TextEditingController(text: company?.ifNumber ?? '');
-    String selectedCity = company?.city ?? MoroccoFormat.cities.first;
+    final nameCtrl         = TextEditingController(text: company?.name ?? '');
+    final industryCtrl     = TextEditingController(text: company?.industry ?? '');
+    final emailCtrl        = TextEditingController(text: company?.email ?? '');
+    final phoneCtrl        = TextEditingController(text: company?.phone ?? '');
+    final faxCtrl          = TextEditingController(text: company?.fax ?? '');
+    final websiteCtrl      = TextEditingController(text: company?.website ?? '');
+    final addressCtrl      = TextEditingController(text: company?.address ?? '');
+    // Fiscal
+    final iceCtrl          = TextEditingController(text: company?.ice ?? '');
+    final rcCtrl           = TextEditingController(text: company?.rc ?? '');
+    final ifCtrl           = TextEditingController(text: company?.ifNumber ?? '');
+    final patenteCtrl      = TextEditingController(text: company?.patente ?? '');
+    final cnssCtrl         = TextEditingController(text: company?.cnss ?? '');
+    final cnssEmpCtrl      = TextEditingController(text: company?.cnssEmployeur ?? '');
+    final tvaCtrl          = TextEditingController(text: company?.numeroTVA ?? '');
+    final ribCtrl          = TextEditingController(text: company?.rib ?? '');
+    final capitalCtrl      = TextEditingController(
+        text: company?.capitalSocial?.toString() ?? '');
+    String selectedCity    = company?.city ?? MoroccoFormat.cities.first;
+    String? selectedForme  = company?.formeJuridique;
+    String selectedStatus  = company?.status ?? 'Active';
+
+    const formes  = ['—', 'SARL', 'SA', 'SNC', 'SCS', 'Auto-entrepreneur'];
+    const statuts = ['Active', 'Inactive', 'En cours de création'];
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setState) => AlertDialog(
-          title:
-              Text(company == null ? 'Nouvelle entreprise' : 'Modifier'),
+        builder: (ctx, setS) => AlertDialog(
+          title: Text(company == null ? 'Nouvelle entreprise' : 'Modifier entreprise'),
           content: SizedBox(
-            width: 500,
+            width: 540,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ── Informations générales ──────────────────────────────
+                  _sectionLabel(ctx, 'Informations générales'),
                   _field(nameCtrl, 'Raison Sociale *'),
+                  const SizedBox(height: 12),
                   _field(industryCtrl, 'Secteur d\'activité'),
+                  const SizedBox(height: 12),
                   _field(emailCtrl, 'Email'),
-                  _field(phoneCtrl, 'Téléphone (ex: 0522334455)'),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: _field(phoneCtrl, 'Téléphone')),
+                    const SizedBox(width: 12),
+                    Expanded(child: _field(faxCtrl, 'Fax')),
+                  ]),
+                  const SizedBox(height: 12),
+                  _field(websiteCtrl, 'Site web'),
+                  const SizedBox(height: 12),
                   _field(addressCtrl, 'Adresse'),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    value: selectedCity,
-                    decoration:
-                        const InputDecoration(labelText: 'Ville'),
-                    items: MoroccoFormat.cities
-                        .map((c) => DropdownMenuItem(
-                            value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (v) =>
-                        setState(() => selectedCity = v!),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('Informations fiscales',
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelLarge
-                          ?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .primary)),
-                  const SizedBox(height: 8),
-                  _field(iceCtrl, 'ICE (15 chiffres)'),
-                  _field(rcCtrl, 'RC (Registre de Commerce)'),
-                  _field(ifCtrl, 'IF (Identifiant Fiscal)'),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: selectedCity,
+                        decoration: const InputDecoration(labelText: 'Ville'),
+                        items: MoroccoFormat.cities
+                            .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                            .toList(),
+                        onChanged: (v) => setS(() => selectedCity = v!),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: selectedStatus,
+                        decoration: const InputDecoration(labelText: 'Statut'),
+                        items: statuts
+                            .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                            .toList(),
+                        onChanged: (v) => setS(() => selectedStatus = v!),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 20),
+
+                  // ── Statut juridique ────────────────────────────────────
+                  _sectionLabel(ctx, 'Statut juridique'),
+                  Row(children: [
+                    Expanded(
+                      child: DropdownButtonFormField<String?>(
+                        value: selectedForme,
+                        decoration: const InputDecoration(labelText: 'Forme juridique'),
+                        items: formes
+                            .map((f) => DropdownMenuItem(
+                                value: f == '—' ? null : f,
+                                child: Text(f)))
+                            .toList(),
+                        onChanged: (v) => setS(() => selectedForme = v),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: _field(capitalCtrl, 'Capital social (MAD)')),
+                  ]),
+                  const SizedBox(height: 20),
+
+                  // ── Identifiants fiscaux ────────────────────────────────
+                  _sectionLabel(ctx, 'Identifiants fiscaux'),
+                  Row(children: [
+                    Expanded(child: _field(iceCtrl, 'ICE (15 chiffres)')),
+                    const SizedBox(width: 12),
+                    Expanded(child: _field(rcCtrl, 'RC (Registre de Commerce)')),
+                  ]),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: _field(ifCtrl, 'IF (Identifiant Fiscal)')),
+                    const SizedBox(width: 12),
+                    Expanded(child: _field(patenteCtrl, 'Patente')),
+                  ]),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: _field(cnssCtrl, 'N° CNSS Salarié')),
+                    const SizedBox(width: 12),
+                    Expanded(child: _field(cnssEmpCtrl, 'N° CNSS Employeur')),
+                  ]),
+                  const SizedBox(height: 12),
+                  _field(tvaCtrl, 'Numéro de TVA'),
+                  const SizedBox(height: 20),
+
+                  // ── Coordonnées bancaires ───────────────────────────────
+                  _sectionLabel(ctx, 'Coordonnées bancaires'),
+                  _field(ribCtrl, 'RIB / IBAN'),
                 ],
               ),
             ),
@@ -264,33 +336,28 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
             FilledButton(
               onPressed: () {
                 if (nameCtrl.text.trim().isEmpty) return;
-                final now =
-                    DateTime.now().millisecondsSinceEpoch;
+                final now = DateTime.now().millisecondsSinceEpoch;
                 final c = Company(
                   id: company?.id,
                   name: nameCtrl.text.trim(),
-                  industry: industryCtrl.text.trim().isEmpty
-                      ? null
-                      : industryCtrl.text.trim(),
-                  email: emailCtrl.text.trim().isEmpty
-                      ? null
-                      : emailCtrl.text.trim(),
-                  phone: phoneCtrl.text.trim().isEmpty
-                      ? null
-                      : phoneCtrl.text.trim(),
-                  address: addressCtrl.text.trim().isEmpty
-                      ? null
-                      : addressCtrl.text.trim(),
+                  industry: _nullIfEmpty(industryCtrl.text),
+                  email: _nullIfEmpty(emailCtrl.text),
+                  phone: _nullIfEmpty(phoneCtrl.text),
+                  fax: _nullIfEmpty(faxCtrl.text),
+                  website: _nullIfEmpty(websiteCtrl.text),
+                  address: _nullIfEmpty(addressCtrl.text),
                   city: selectedCity,
-                  ice: iceCtrl.text.trim().isEmpty
-                      ? null
-                      : iceCtrl.text.trim(),
-                  rc: rcCtrl.text.trim().isEmpty
-                      ? null
-                      : rcCtrl.text.trim(),
-                  ifNumber: ifCtrl.text.trim().isEmpty
-                      ? null
-                      : ifCtrl.text.trim(),
+                  ice: _nullIfEmpty(iceCtrl.text),
+                  rc: _nullIfEmpty(rcCtrl.text),
+                  ifNumber: _nullIfEmpty(ifCtrl.text),
+                  patente: _nullIfEmpty(patenteCtrl.text),
+                  cnss: _nullIfEmpty(cnssCtrl.text),
+                  cnssEmployeur: _nullIfEmpty(cnssEmpCtrl.text),
+                  numeroTVA: _nullIfEmpty(tvaCtrl.text),
+                  rib: _nullIfEmpty(ribCtrl.text),
+                  formeJuridique: selectedForme,
+                  capitalSocial: double.tryParse(capitalCtrl.text.trim()),
+                  status: selectedStatus,
                   createdAt: company?.createdAt ?? now,
                 );
                 if (company == null) {
@@ -308,15 +375,22 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
     );
   }
 
+  String? _nullIfEmpty(String v) => v.trim().isEmpty ? null : v.trim();
+
+  Widget _sectionLabel(BuildContext ctx, String label) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Text(label,
+            style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
+                color: Theme.of(ctx).colorScheme.primary,
+                fontWeight: FontWeight.w700)),
+      );
+
   Widget _field(TextEditingController ctrl, String label,
-      {int maxLines = 1}) =>
-      Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: TextField(
-          controller: ctrl,
-          maxLines: maxLines,
-          decoration: InputDecoration(labelText: label),
-        ),
+          {int maxLines = 1}) =>
+      TextField(
+        controller: ctrl,
+        maxLines: maxLines,
+        decoration: InputDecoration(labelText: label),
       );
 }
 

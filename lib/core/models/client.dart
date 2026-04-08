@@ -7,8 +7,14 @@ class Client {
   final String? phone;
   final String? address;
   final String? city;
-  final String? cin;   // Carte d'Identité Nationale
-  final String? ice;   // ICE for company-clients
+  final String? cin;            // Carte d'Identité Nationale
+  final String? ice;            // ICE (15 chiffres)
+  final String? rc;             // Registre de Commerce
+  final String? ifNumber;       // Identifiant Fiscal
+  final String? patente;        // Numéro de Patente
+  final String? cnssNum;        // N° CNSS
+  final String? rib;            // RIB / Compte bancaire
+  final String? formeJuridique; // SARL · SA · SNC · Auto-entrepreneur…
   final String? notes;
   final int createdAt;
 
@@ -23,6 +29,12 @@ class Client {
     this.city,
     this.cin,
     this.ice,
+    this.rc,
+    this.ifNumber,
+    this.patente,
+    this.cnssNum,
+    this.rib,
+    this.formeJuridique,
     this.notes,
     required this.createdAt,
   });
@@ -38,6 +50,12 @@ class Client {
         city: m['city'] as String?,
         cin: m['cin'] as String?,
         ice: m['ice'] as String?,
+        rc: m['rc'] as String?,
+        ifNumber: m['if_number'] as String?,
+        patente: m['patente'] as String?,
+        cnssNum: m['cnss_num'] as String?,
+        rib: m['rib'] as String?,
+        formeJuridique: m['forme_juridique'] as String?,
         notes: m['notes'] as String?,
         createdAt: m['created_at'] as int,
       );
@@ -52,6 +70,12 @@ class Client {
         'city': city,
         'cin': cin,
         'ice': ice,
+        'rc': rc,
+        'if_number': ifNumber,
+        'patente': patente,
+        'cnss_num': cnssNum,
+        'rib': rib,
+        'forme_juridique': formeJuridique,
         'notes': notes,
         'created_at': createdAt,
       };
@@ -67,6 +91,12 @@ class Client {
     String? city,
     String? cin,
     String? ice,
+    String? rc,
+    String? ifNumber,
+    String? patente,
+    String? cnssNum,
+    String? rib,
+    String? formeJuridique,
     String? notes,
     int? createdAt,
   }) =>
@@ -81,6 +111,12 @@ class Client {
         city: city ?? this.city,
         cin: cin ?? this.cin,
         ice: ice ?? this.ice,
+        rc: rc ?? this.rc,
+        ifNumber: ifNumber ?? this.ifNumber,
+        patente: patente ?? this.patente,
+        cnssNum: cnssNum ?? this.cnssNum,
+        rib: rib ?? this.rib,
+        formeJuridique: formeJuridique ?? this.formeJuridique,
         notes: notes ?? this.notes,
         createdAt: createdAt ?? this.createdAt,
       );
