@@ -10,6 +10,7 @@ import '../models/employee.dart';
 import '../models/payroll_slip.dart';
 import '../models/journal_entry.dart';
 import '../models/manufacturing_bom.dart';
+import '../models/pos_sale.dart';
 import '../repositories/company_repository.dart';
 import '../repositories/client_repository.dart';
 import '../repositories/product_repository.dart';
@@ -20,6 +21,9 @@ import '../repositories/purchase_order_repository.dart';
 import '../repositories/employee_repository.dart';
 import '../repositories/accounting_repository.dart';
 import '../repositories/manufacturing_repository.dart';
+import '../repositories/pos_repository.dart';
+import '../repositories/report_repository.dart';
+import '../services/accounting_integration.dart';
 import '../database/database_helper.dart';
 
 // ── Repositories (singletons) ─────────────────────────────────────────────
@@ -147,6 +151,8 @@ class InvoiceNotifier extends AsyncNotifier<List<Invoice>> {
 
   Future<void> add(Invoice invoice, List<InvoiceItem> items) async {
     await ref.read(invoiceRepoProvider).insert(invoice, items);
+    // Auto-post to accounting journal
+    AccountingIntegration.postInvoice(invoice).ignore();
     ref.invalidateSelf();
   }
 
@@ -263,6 +269,12 @@ class PurchaseOrderNotifier extends AsyncNotifier<List<PurchaseOrder>> {
 
   Future<void> updateStatus(int id, String status) async {
     await ref.read(purchaseOrderRepoProvider).updateStatus(id, status);
+    // Auto-post to accounting when received
+    if (status == 'Reçu') {
+      final orders = await ref.read(purchaseOrderRepoProvider).getAll();
+      final order = orders.where((o) => o.id == id).firstOrNull;
+      if (order != null) AccountingIntegration.postPurchaseReceived(order).ignore();
+    }
     ref.invalidateSelf();
   }
 
@@ -318,6 +330,12 @@ class PayrollNotifier extends AsyncNotifier<List<PayrollSlip>> {
 
   Future<void> updateStatus(int id, String status) async {
     await ref.read(employeeRepoProvider).updatePayrollStatus(id, status);
+    // Auto-post when validated
+    if (status == 'Validé') {
+      final slips = await ref.read(employeeRepoProvider).getPayrollSlips();
+      final slip = slips.where((s) => s.id == id).firstOrNull;
+      if (slip != null) AccountingIntegration.postPayroll(slip).ignore();
+    }
     ref.invalidateSelf();
   }
 
@@ -420,3 +438,47 @@ class ProductionOrderNotifier extends AsyncNotifier<List<ProductionOrder>> {
 final productionOrderProvider =
     AsyncNotifierProvider<ProductionOrderNotifier, List<ProductionOrder>>(
         ProductionOrderNotifier.new);
+
+// ── POS ───────────────────────────────────────────────────────────────────────
+
+final posRepoProvider = Provider((_) => PosRepository());
+
+class PriceListNotifier extends AsyncNotifier<List<PriceList>> {
+  @override
+  Future<List<PriceList>> build() =>
+      ref.read(posRepoProvider).getAllPriceLists();
+
+  Future<void> add(PriceList pl) async {
+    await ref.read(posRepoProvider).insertPriceList(pl);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(posRepoProvider).deletePriceList(id);
+    ref.invalidateSelf();
+  }
+}
+
+final priceListProvider =
+    AsyncNotifierProvider<PriceListNotifier, List<PriceList>>(
+        PriceListNotifier.new);
+
+class PosSaleNotifier extends AsyncNotifier<List<PosSale>> {
+  @override
+  Future<List<PosSale>> build() => ref.read(posRepoProvider).getSales();
+
+  Future<int> completeSale(PosSale sale) async {
+    final id = await ref.read(posRepoProvider).insertSale(sale);
+    // Auto-post to accounting
+    AccountingIntegration.postPosSale(sale).ignore();
+    ref.invalidateSelf();
+    return id;
+  }
+}
+
+final posSaleProvider =
+    AsyncNotifierProvider<PosSaleNotifier, List<PosSale>>(PosSaleNotifier.new);
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+final reportRepoProvider = Provider((_) => ReportRepository());

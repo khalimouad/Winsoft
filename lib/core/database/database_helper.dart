@@ -18,7 +18,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
@@ -154,12 +154,16 @@ class DatabaseHelper {
     ''');
 
     await _createNewTables(db);
+    await _createPosTables(db);
     await _seedData(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await _createNewTables(db);
+    }
+    if (oldVersion < 3) {
+      await _createPosTables(db);
     }
   }
 
@@ -370,6 +374,77 @@ class DatabaseHelper {
         planned_qty         REAL    NOT NULL DEFAULT 0,
         actual_qty          REAL    NOT NULL DEFAULT 0,
         role                TEXT    NOT NULL DEFAULT 'output'
+      )
+    ''');
+  }
+
+  Future<void> _createPosTables(Database db) async {
+    // ── Price lists ──────────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS price_lists (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        name             TEXT    NOT NULL,
+        description      TEXT,
+        discount_percent REAL    NOT NULL DEFAULT 0,
+        is_default       INTEGER NOT NULL DEFAULT 0,
+        created_at       INTEGER NOT NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS price_list_items (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        price_list_id    INTEGER NOT NULL REFERENCES price_lists(id) ON DELETE CASCADE,
+        product_id       INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+        fixed_price      REAL,
+        discount_percent REAL    NOT NULL DEFAULT 0,
+        UNIQUE(price_list_id, product_id)
+      )
+    ''');
+
+    // ── POS sessions ─────────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS pos_sessions (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        opened_at     INTEGER NOT NULL,
+        closed_at     INTEGER,
+        opening_cash  REAL    NOT NULL DEFAULT 0,
+        closing_cash  REAL,
+        status        TEXT    NOT NULL DEFAULT 'open',
+        user_id       INTEGER NOT NULL REFERENCES users(id)
+      )
+    ''');
+
+    // ── POS sales ────────────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS pos_sales (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        reference      TEXT    NOT NULL UNIQUE,
+        session_id     INTEGER NOT NULL REFERENCES pos_sessions(id),
+        client_id      INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+        sale_date      INTEGER NOT NULL,
+        total_ht       REAL    NOT NULL DEFAULT 0,
+        total_tva      REAL    NOT NULL DEFAULT 0,
+        total_ttc      REAL    NOT NULL DEFAULT 0,
+        payment_method TEXT    NOT NULL DEFAULT 'Espèces',
+        amount_tendered REAL   NOT NULL DEFAULT 0,
+        change_given   REAL    NOT NULL DEFAULT 0,
+        price_list_id  INTEGER REFERENCES price_lists(id) ON DELETE SET NULL,
+        notes          TEXT,
+        invoice_id     INTEGER REFERENCES invoices(id) ON DELETE SET NULL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS pos_sale_items (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        sale_id          INTEGER NOT NULL REFERENCES pos_sales(id) ON DELETE CASCADE,
+        product_id       INTEGER NOT NULL REFERENCES products(id),
+        description      TEXT    NOT NULL,
+        quantity         REAL    NOT NULL DEFAULT 1,
+        unit_price_ht    REAL    NOT NULL DEFAULT 0,
+        tva_rate         REAL    NOT NULL DEFAULT 20,
+        discount_percent REAL    NOT NULL DEFAULT 0
       )
     ''');
   }

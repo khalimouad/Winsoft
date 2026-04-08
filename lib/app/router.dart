@@ -13,6 +13,10 @@ import '../features/purchases/purchases_page.dart';
 import '../features/hr/hr_page.dart';
 import '../features/accounting/accounting_page.dart';
 import '../features/manufacturing/manufacturing_page.dart';
+import '../features/reports/reports_page.dart';
+import '../features/declarations/declarations_page.dart';
+import '../features/pos/pos_page.dart';
+import '../features/pos/price_lists_page.dart';
 import '../features/team/team_page.dart';
 import '../features/subscription/subscription_page.dart';
 import '../features/settings/settings_page.dart';
@@ -102,6 +106,26 @@ GoRouter buildRouter(WidgetRef ref) {
             path: '/manufacturing',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: ManufacturingPage()),
+          ),
+          GoRoute(
+            path: '/pos',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: PosPage()),
+          ),
+          GoRoute(
+            path: '/price-lists',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: PriceListsPage()),
+          ),
+          GoRoute(
+            path: '/reports',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: ReportsPage()),
+          ),
+          GoRoute(
+            path: '/declarations',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: DeclarationsPage()),
           ),
           GoRoute(
             path: '/team',
@@ -197,6 +221,19 @@ const List<NavDestination> appDestinations = [
     route: '/manufacturing',
   ),
   NavDestination(
+    label: 'Point de Vente (POS)',
+    icon: Icon(Icons.point_of_sale_outlined),
+    selectedIcon: Icon(Icons.point_of_sale),
+    route: '/pos',
+    groupLabel: 'POS',
+  ),
+  NavDestination(
+    label: 'Listes de prix',
+    icon: Icon(Icons.price_change_outlined),
+    selectedIcon: Icon(Icons.price_change),
+    route: '/price-lists',
+  ),
+  NavDestination(
     label: 'Ressources Humaines',
     icon: Icon(Icons.badge_outlined),
     selectedIcon: Icon(Icons.badge),
@@ -209,6 +246,18 @@ const List<NavDestination> appDestinations = [
     selectedIcon: Icon(Icons.account_balance),
     route: '/accounting',
     groupLabel: 'FINANCE',
+  ),
+  NavDestination(
+    label: 'Rapports',
+    icon: Icon(Icons.bar_chart_outlined),
+    selectedIcon: Icon(Icons.bar_chart),
+    route: '/reports',
+  ),
+  NavDestination(
+    label: 'Déclarations fiscales',
+    icon: Icon(Icons.description_outlined),
+    selectedIcon: Icon(Icons.description),
+    route: '/declarations',
   ),
   NavDestination(
     label: 'Équipe',
