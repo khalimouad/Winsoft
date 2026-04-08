@@ -39,6 +39,9 @@ dependencies:
   pdf: ^3.11.1
   printing: ^5.13.2
 
+  # Google Fonts (Inter — modern SaaS typography)
+  google_fonts: ^6.2.1
+
   # Icons
   cupertino_icons: ^1.0.8
 
