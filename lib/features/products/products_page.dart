@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/models/app_lists.dart';
 import '../../core/models/product.dart';
 import '../../core/providers/providers.dart';
 import '../../core/utils/morocco_format.dart';
@@ -44,7 +45,8 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                   ],
                 ),
                 FilledButton.icon(
-                  onPressed: () => _showDialog(context),
+                  onPressed: () => _showDialog(context,
+                      lists: ref.read(appListsProvider).valueOrNull ?? AppLists.defaults),
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Nouveau produit'),
                 ),
@@ -176,7 +178,8 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                                             size: 18),
                                         onPressed: () =>
                                             _showDialog(context,
-                                                product: p),
+                                                product: p,
+                                                lists: ref.read(appListsProvider).valueOrNull ?? AppLists.defaults),
                                         visualDensity:
                                             VisualDensity.compact,
                                       ),
@@ -231,20 +234,26 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
     );
   }
 
-  void _showDialog(BuildContext context, {Product? product}) {
+  void _showDialog(BuildContext context, {Product? product, AppLists? lists}) {
+    lists ??= AppLists.defaults;
     final nameCtrl =
         TextEditingController(text: product?.name ?? '');
     final refCtrl =
         TextEditingController(text: product?.reference ?? '');
-    final catCtrl =
-        TextEditingController(text: product?.category ?? '');
     final priceCtrl = TextEditingController(
         text: product != null ? product.priceHt.toStringAsFixed(2) : '');
     final stockCtrl = TextEditingController(
         text: product?.stock?.toString() ?? '');
-    final unitCtrl =
-        TextEditingController(text: product?.unit ?? '');
-    double selectedTva = product?.tvaRate ?? 20.0;
+    String? selectedCategory = lists.productCategories.contains(product?.category)
+        ? product!.category
+        : null;
+    String? selectedUnit = lists.productUnits.contains(product?.unit)
+        ? product!.unit
+        : null;
+    final double defaultTva = lists.tvaRates.contains(20.0) ? 20.0 : lists.tvaRates.last;
+    double selectedTva = lists.tvaRates.contains(product?.tvaRate ?? 20.0)
+        ? (product?.tvaRate ?? defaultTva)
+        : defaultTva;
     bool isService = product?.isService ?? true;
 
     showDialog(
@@ -269,10 +278,16 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                       decoration:
                           const InputDecoration(labelText: 'Référence')),
                   const SizedBox(height: 12),
-                  TextField(
-                      controller: catCtrl,
-                      decoration:
-                          const InputDecoration(labelText: 'Catégorie')),
+                  DropdownButtonFormField<String?>(
+                    value: selectedCategory,
+                    decoration: const InputDecoration(labelText: 'Catégorie'),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('— Choisir —')),
+                      ...lists.productCategories.map((c) =>
+                          DropdownMenuItem(value: c, child: Text(c))),
+                    ],
+                    onChanged: (v) => setState(() => selectedCategory = v),
+                  ),
                   const SizedBox(height: 12),
                   TextField(
                       controller: priceCtrl,
@@ -282,15 +297,13 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<double>(
                     value: selectedTva,
-                    decoration: const InputDecoration(
-                        labelText: 'Taux TVA'),
-                    items: MoroccoFormat.tvaRates
+                    decoration: const InputDecoration(labelText: 'Taux TVA'),
+                    items: lists.tvaRates
                         .map((r) => DropdownMenuItem(
                             value: r,
                             child: Text(MoroccoFormat.tvaLabel(r))))
                         .toList(),
-                    onChanged: (v) =>
-                        setState(() => selectedTva = v!),
+                    onChanged: (v) => setState(() => selectedTva = v!),
                   ),
                   const SizedBox(height: 12),
                   SwitchListTile(
@@ -309,10 +322,16 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                             labelText: 'Stock initial')),
                   ],
                   const SizedBox(height: 12),
-                  TextField(
-                      controller: unitCtrl,
-                      decoration: const InputDecoration(
-                          labelText: 'Unité (ex: pièce, heure, forfait)')),
+                  DropdownButtonFormField<String?>(
+                    value: selectedUnit,
+                    decoration: const InputDecoration(labelText: 'Unité'),
+                    items: [
+                      const DropdownMenuItem(value: null, child: Text('— Choisir —')),
+                      ...lists.productUnits.map((u) =>
+                          DropdownMenuItem(value: u, child: Text(u))),
+                    ],
+                    onChanged: (v) => setState(() => selectedUnit = v),
+                  ),
                 ],
               ),
             ),
@@ -336,15 +355,11 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                   reference: refCtrl.text.trim().isEmpty
                       ? null
                       : refCtrl.text.trim(),
-                  category: catCtrl.text.trim().isEmpty
-                      ? null
-                      : catCtrl.text.trim(),
+                  category: selectedCategory,
                   priceHt: priceHt,
                   tvaRate: selectedTva,
                   stock: stock,
-                  unit: unitCtrl.text.trim().isEmpty
-                      ? null
-                      : unitCtrl.text.trim(),
+                  unit: selectedUnit,
                   createdAt: product?.createdAt ?? now,
                 );
                 if (product == null) {

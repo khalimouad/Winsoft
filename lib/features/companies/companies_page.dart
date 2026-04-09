@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/models/app_lists.dart';
 import '../../core/models/company.dart';
 import '../../core/providers/providers.dart';
 import '../../core/utils/morocco_format.dart';
@@ -17,6 +18,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final async = ref.watch(companyProvider);
+    final lists = ref.watch(appListsProvider).valueOrNull ?? AppLists.defaults;
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
@@ -43,7 +45,8 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                   ],
                 ),
                 FilledButton.icon(
-                  onPressed: () => _showDialog(context),
+                  onPressed: () => _showDialog(context,
+                      lists: ref.read(appListsProvider).valueOrNull ?? AppLists.defaults),
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Nouvelle entreprise'),
                 ),
@@ -147,7 +150,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                                         icon: const Icon(Icons.edit_outlined,
                                             size: 18),
                                         onPressed: () =>
-                                            _showDialog(context, company: c),
+                                            _showDialog(context, company: c, lists: lists),
                                         visualDensity: VisualDensity.compact,
                                       ),
                                       IconButton(
@@ -198,7 +201,8 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
     );
   }
 
-  void _showDialog(BuildContext context, {Company? company}) {
+  void _showDialog(BuildContext context, {Company? company, AppLists? lists}) {
+    lists ??= AppLists.defaults;
     final nameCtrl         = TextEditingController(text: company?.name ?? '');
     final industryCtrl     = TextEditingController(text: company?.industry ?? '');
     final emailCtrl        = TextEditingController(text: company?.email ?? '');
@@ -217,12 +221,14 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
     final ribCtrl          = TextEditingController(text: company?.rib ?? '');
     final capitalCtrl      = TextEditingController(
         text: company?.capitalSocial?.toString() ?? '');
-    String selectedCity    = company?.city ?? MoroccoFormat.cities.first;
+    String selectedCity    = company?.city ??
+        (lists!.cities.isNotEmpty ? lists.cities.first : MoroccoFormat.cities.first);
     String? selectedForme  = company?.formeJuridique;
-    String selectedStatus  = company?.status ?? 'Active';
+    String selectedStatus  = company?.status ??
+        (lists.companyStatuses.isNotEmpty ? lists.companyStatuses.first : 'Active');
 
-    const formes  = ['—', 'SARL', 'SA', 'SNC', 'SCS', 'Auto-entrepreneur'];
-    const statuts = ['Active', 'Inactive', 'En cours de création'];
+    final formes  = ['—', ...lists.formesJuridiques];
+    final statuts = lists.companyStatuses;
 
     showDialog(
       context: context,
@@ -259,7 +265,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                       child: DropdownButtonFormField<String>(
                         value: selectedCity,
                         decoration: const InputDecoration(labelText: 'Ville'),
-                        items: MoroccoFormat.cities
+                        items: lists!.cities
                             .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                             .toList(),
                         onChanged: (v) => setS(() => selectedCity = v!),

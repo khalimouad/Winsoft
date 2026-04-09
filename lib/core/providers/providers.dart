@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../models/app_lists.dart';
 import '../models/company.dart';
 import '../models/client.dart';
 import '../models/product.dart';
@@ -253,6 +254,12 @@ final dashboardProvider = FutureProvider<DashboardStats>((ref) async {
 
 final settingsProvider = FutureProvider<Map<String, String>>((ref) async {
   return DatabaseHelper.instance.getAllSettings();
+});
+
+/// All user-configurable lists (cities, TVA rates, formes juridiques, etc.)
+final appListsProvider = FutureProvider<AppLists>((ref) async {
+  final settings = await ref.watch(settingsProvider.future);
+  return AppLists.fromSettings(settings);
 });
 
 // ── Suppliers ─────────────────────────────────────────────────────────────

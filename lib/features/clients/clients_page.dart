@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/models/app_lists.dart';
 import '../../core/models/client.dart';
 import '../../core/providers/providers.dart';
 import '../../core/utils/morocco_format.dart';
@@ -44,7 +45,8 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                   ],
                 ),
                 FilledButton.icon(
-                  onPressed: () => _showDialog(context, companiesAsync.value ?? []),
+                  onPressed: () => _showDialog(context, companiesAsync.value ?? [],
+                      ref.read(appListsProvider).valueOrNull ?? AppLists.defaults),
                   icon: const Icon(Icons.person_add_outlined, size: 18),
                   label: const Text('Nouveau client'),
                 ),
@@ -147,6 +149,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                                         onPressed: () => _showDialog(
                                             context,
                                             companiesAsync.value ?? [],
+                                            ref.read(appListsProvider).valueOrNull ?? AppLists.defaults,
                                             client: c),
                                         visualDensity:
                                             VisualDensity.compact,
@@ -202,7 +205,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
     );
   }
 
-  void _showDialog(BuildContext context, List companies,
+  void _showDialog(BuildContext context, List companies, AppLists lists,
       {Client? client}) {
     final nameCtrl    = TextEditingController(text: client?.name ?? '');
     final emailCtrl   = TextEditingController(text: client?.email ?? '');
@@ -217,11 +220,12 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
     final patenteCtrl = TextEditingController(text: client?.patente ?? '');
     final cnssCtrl    = TextEditingController(text: client?.cnssNum ?? '');
     final ribCtrl     = TextEditingController(text: client?.rib ?? '');
-    String selectedCity = client?.city ?? MoroccoFormat.cities.first;
+    String selectedCity = client?.city ??
+        (lists.cities.isNotEmpty ? lists.cities.first : MoroccoFormat.cities.first);
     int? selectedCompanyId = client?.companyId;
     String? selectedForme = client?.formeJuridique;
 
-    const formes = ['—', 'SARL', 'SA', 'SNC', 'SCS', 'Auto-entrepreneur', 'Personne physique'];
+    final formes = ['—', ...lists.formesJuridiques];
 
     showDialog(
       context: context,
@@ -259,7 +263,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
                   DropdownButtonFormField<String>(
                     value: selectedCity,
                     decoration: const InputDecoration(labelText: 'Ville'),
-                    items: MoroccoFormat.cities
+                    items: lists.cities
                         .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                         .toList(),
                     onChanged: (v) => setS(() => selectedCity = v!),

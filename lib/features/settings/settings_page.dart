@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app.dart';
 import '../../core/database/database_helper.dart';
+import '../../core/models/app_lists.dart';
 import '../../core/providers/providers.dart';
 import '../../core/providers/language_provider.dart';
 import '../../core/services/backup_service.dart';
@@ -14,16 +15,16 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  final _nameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
+  final _nameCtrl    = TextEditingController();
+  final _emailCtrl   = TextEditingController();
+  final _phoneCtrl   = TextEditingController();
   final _addressCtrl = TextEditingController();
-  final _iceCtrl = TextEditingController();
-  final _rcCtrl = TextEditingController();
-  final _ifCtrl = TextEditingController();
-  final _prefixCtrl = TextEditingController();
-  final _termsCtrl = TextEditingController();
-  final _notesCtrl = TextEditingController();
+  final _iceCtrl     = TextEditingController();
+  final _rcCtrl      = TextEditingController();
+  final _ifCtrl      = TextEditingController();
+  final _prefixCtrl  = TextEditingController();
+  final _termsCtrl   = TextEditingController();
+  final _notesCtrl   = TextEditingController();
   String _selectedCity = MoroccoFormat.cities.first;
   double _tvaDefault = 20.0;
   bool _loaded = false;
@@ -48,31 +49,29 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final theme = Theme.of(context);
     final themeMode = ref.watch(themeModeProvider);
     final settingsAsync = ref.watch(settingsProvider);
+    final listsAsync = ref.watch(appListsProvider);
+    final lists = listsAsync.valueOrNull ?? AppLists.defaults;
 
     return settingsAsync.when(
-      loading: () => const Scaffold(
-          body: Center(child: CircularProgressIndicator())),
-      error: (e, _) =>
-          Scaffold(body: Center(child: Text('Erreur: $e'))),
+      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Scaffold(body: Center(child: Text('Erreur: $e'))),
       data: (settings) {
         if (!_loaded) {
-          _nameCtrl.text = settings['company_name'] ?? '';
-          _emailCtrl.text = settings['company_email'] ?? '';
-          _phoneCtrl.text = settings['company_phone'] ?? '';
+          _nameCtrl.text    = settings['company_name'] ?? '';
+          _emailCtrl.text   = settings['company_email'] ?? '';
+          _phoneCtrl.text   = settings['company_phone'] ?? '';
           _addressCtrl.text = settings['company_address'] ?? '';
-          _iceCtrl.text = settings['company_ice'] ?? '';
-          _rcCtrl.text = settings['company_rc'] ?? '';
-          _ifCtrl.text = settings['company_if'] ?? '';
-          _prefixCtrl.text = settings['invoice_prefix'] ?? 'FAC';
-          _termsCtrl.text =
-              settings['invoice_terms'] ?? '30 jours net';
-          _notesCtrl.text = settings['invoice_notes'] ?? '';
+          _iceCtrl.text     = settings['company_ice'] ?? '';
+          _rcCtrl.text      = settings['company_rc'] ?? '';
+          _ifCtrl.text      = settings['company_if'] ?? '';
+          _prefixCtrl.text  = settings['invoice_prefix'] ?? 'FAC';
+          _termsCtrl.text   = settings['invoice_terms'] ?? '30 jours net';
+          _notesCtrl.text   = settings['invoice_notes'] ?? '';
           final city = settings['company_city'] ?? MoroccoFormat.cities.first;
           _selectedCity = MoroccoFormat.cities.contains(city)
               ? city
               : MoroccoFormat.cities.first;
-          _tvaDefault =
-              double.tryParse(settings['tva_default'] ?? '20') ?? 20;
+          _tvaDefault = double.tryParse(settings['tva_default'] ?? '20') ?? 20;
           _loaded = true;
         }
 
@@ -86,13 +85,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 Text('Paramètres',
                     style: theme.textTheme.headlineSmall
                         ?.copyWith(fontWeight: FontWeight.bold)),
-                Text(
-                    'Configurez votre application et votre profil entreprise.',
+                Text('Configurez votre application et votre profil entreprise.',
                     style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant)),
                 const SizedBox(height: 24),
 
-                // Company Profile
+                // ── Company Profile ──────────────────────────────────────────
                 _Section(
                   title: 'Profil Entreprise',
                   icon: Icons.business_outlined,
@@ -103,37 +101,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     _field(_addressCtrl, 'Adresse'),
                     const SizedBox(height: 8),
                     StatefulBuilder(
-                      builder: (ctx, setState) =>
-                          DropdownButtonFormField<String>(
-                        value: _selectedCity,
-                        decoration:
-                            const InputDecoration(labelText: 'Ville'),
-                        items: MoroccoFormat.cities
-                            .map((c) => DropdownMenuItem(
-                                value: c, child: Text(c)))
+                      builder: (ctx, ss) => DropdownButtonFormField<String>(
+                        value: lists.cities.contains(_selectedCity)
+                            ? _selectedCity
+                            : lists.cities.first,
+                        decoration: const InputDecoration(labelText: 'Ville'),
+                        items: lists.cities
+                            .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                             .toList(),
-                        onChanged: (v) =>
-                            setState(() => _selectedCity = v!),
+                        onChanged: (v) => ss(() => _selectedCity = v!),
                       ),
                     ),
                     const SizedBox(height: 16),
                     Text('Informations fiscales',
-                        style: theme.textTheme.labelLarge?.copyWith(
-                            color: theme.colorScheme.primary)),
+                        style: theme.textTheme.labelLarge
+                            ?.copyWith(color: theme.colorScheme.primary)),
                     const SizedBox(height: 8),
                     _field(_iceCtrl, 'ICE (15 chiffres)'),
                     _field(_rcCtrl, 'RC'),
                     _field(_ifCtrl, 'IF (Identifiant Fiscal)'),
                     const SizedBox(height: 8),
                     FilledButton(
-                      onPressed: () => _saveCompanyProfile(),
+                      onPressed: _saveCompanyProfile,
                       child: const Text('Enregistrer le profil'),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
 
-                // Invoice settings
+                // ── Invoice settings ─────────────────────────────────────────
                 _Section(
                   title: 'Paramètres de facturation',
                   icon: Icons.receipt_long_outlined,
@@ -141,66 +137,131 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     _field(_prefixCtrl, 'Préfixe facture (ex: FAC)'),
                     _field(_termsCtrl, 'Conditions de paiement'),
                     StatefulBuilder(
-                      builder: (ctx, setState) =>
-                          DropdownButtonFormField<double>(
-                        value: _tvaDefault,
-                        decoration: const InputDecoration(
-                            labelText: 'TVA par défaut'),
-                        items: MoroccoFormat.tvaRates
+                      builder: (ctx, ss) => DropdownButtonFormField<double>(
+                        value: lists.tvaRates.contains(_tvaDefault)
+                            ? _tvaDefault
+                            : lists.tvaRates.last,
+                        decoration:
+                            const InputDecoration(labelText: 'TVA par défaut'),
+                        items: lists.tvaRates
                             .map((r) => DropdownMenuItem(
                                 value: r,
-                                child: Text(
-                                    MoroccoFormat.tvaLabel(r))))
+                                child: Text(MoroccoFormat.tvaLabel(r))))
                             .toList(),
-                        onChanged: (v) =>
-                            setState(() => _tvaDefault = v!),
+                        onChanged: (v) => ss(() => _tvaDefault = v!),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    _field(_notesCtrl, 'Note de bas de facture',
-                        maxLines: 3),
+                    _field(_notesCtrl, 'Note de bas de facture', maxLines: 3),
                     const SizedBox(height: 8),
                     FilledButton(
-                      onPressed: () => _saveInvoiceSettings(),
+                      onPressed: _saveInvoiceSettings,
                       child: const Text('Enregistrer'),
                     ),
                   ],
                 ),
                 const SizedBox(height: 20),
 
-                // Appearance & Language
+                // ── Configurable Lists ───────────────────────────────────────
+                _Section(
+                  title: 'Listes personnalisables',
+                  icon: Icons.list_alt_outlined,
+                  children: [
+                    Text(
+                      'Personnalisez les options disponibles dans tous les formulaires de l\'application.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 20),
+                    _ListEditor(
+                      title: 'Villes',
+                      icon: Icons.location_city_outlined,
+                      settingsKey: AppLists.kCities,
+                      items: lists.cities,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Taux de TVA (%)',
+                      icon: Icons.percent_outlined,
+                      settingsKey: AppLists.kTvaRates,
+                      items: lists.tvaRates.map((r) => r.toInt() == r ? r.toInt().toString() : r.toString()).toList(),
+                      isNumeric: true,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Formes juridiques',
+                      icon: Icons.gavel_outlined,
+                      settingsKey: AppLists.kFormesJuridiques,
+                      items: lists.formesJuridiques,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Modes de paiement',
+                      icon: Icons.payment_outlined,
+                      settingsKey: AppLists.kPaymentMethods,
+                      items: lists.paymentMethods,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Types de congés',
+                      icon: Icons.beach_access_outlined,
+                      settingsKey: AppLists.kLeaveTypes,
+                      items: lists.leaveTypes,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Catégories de produits',
+                      icon: Icons.category_outlined,
+                      settingsKey: AppLists.kProductCategories,
+                      items: lists.productCategories,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Unités de mesure',
+                      icon: Icons.straighten_outlined,
+                      settingsKey: AppLists.kProductUnits,
+                      items: lists.productUnits,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Statuts entreprises',
+                      icon: Icons.business_center_outlined,
+                      settingsKey: AppLists.kCompanyStatuses,
+                      items: lists.companyStatuses,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Départements employés',
+                      icon: Icons.people_outlined,
+                      settingsKey: AppLists.kEmployeeDepartments,
+                      items: lists.employeeDepartments,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // ── Appearance & Language ────────────────────────────────────
                 _Section(
                   title: 'Apparence & Langue',
                   icon: Icons.palette_outlined,
                   children: [
                     Row(
-                      mainAxisAlignment:
-                          MainAxisAlignment.spaceBetween,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          children: [
-                            Text('Mode sombre',
-                                style: theme.textTheme.bodyLarge
-                                    ?.copyWith(
-                                        fontWeight: FontWeight.w500)),
-                            Text('Changer le thème de l\'interface',
-                                style: theme.textTheme.bodySmall
-                                    ?.copyWith(
-                                        color: theme.colorScheme
-                                            .onSurfaceVariant)),
-                          ],
-                        ),
+                        Column(crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          Text('Mode sombre',
+                              style: theme.textTheme.bodyLarge
+                                  ?.copyWith(fontWeight: FontWeight.w500)),
+                          Text('Changer le thème de l\'interface',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant)),
+                        ]),
                         Switch(
                           value: themeMode == ThemeMode.dark,
-                          onChanged: (val) {
-                            ref
-                                .read(themeModeProvider.notifier)
-                                .state = val
-                                ? ThemeMode.dark
-                                : ThemeMode.light;
-                          },
+                          onChanged: (val) => ref
+                              .read(themeModeProvider.notifier)
+                              .state = val ? ThemeMode.dark : ThemeMode.light,
                         ),
                       ],
                     ),
@@ -208,37 +269,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     Consumer(
                       builder: (ctx, ref, _) {
                         final langAsync = ref.watch(languageProvider);
-                        final currentLang = langAsync.maybeWhen(
-                            data: (l) => l, orElse: () => 'fr');
+                        final currentLang =
+                            langAsync.maybeWhen(data: (l) => l, orElse: () => 'fr');
                         return Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Text('Langue / اللغة / Language',
-                                    style: theme.textTheme.bodyLarge
-                                        ?.copyWith(
-                                            fontWeight:
-                                                FontWeight.w500)),
-                                Text(
-                                    'Interface en Français, العربية ou English',
-                                    style: theme.textTheme.bodySmall
-                                        ?.copyWith(
-                                            color: theme.colorScheme
-                                                .onSurfaceVariant)),
-                              ],
-                            ),
+                            Column(crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                              Text('Langue / اللغة / Language',
+                                  style: theme.textTheme.bodyLarge
+                                      ?.copyWith(fontWeight: FontWeight.w500)),
+                              Text('Interface en Français, العربية ou English',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                      color:
+                                          theme.colorScheme.onSurfaceVariant)),
+                            ]),
                             SegmentedButton<String>(
                               segments: const [
-                                ButtonSegment(
-                                    value: 'fr', label: Text('FR')),
-                                ButtonSegment(
-                                    value: 'ar', label: Text('ع')),
-                                ButtonSegment(
-                                    value: 'en', label: Text('EN')),
+                                ButtonSegment(value: 'fr', label: Text('FR')),
+                                ButtonSegment(value: 'ar', label: Text('ع')),
+                                ButtonSegment(value: 'en', label: Text('EN')),
                               ],
                               selected: {currentLang},
                               onSelectionChanged: (sel) => ref
@@ -253,23 +303,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Backup & Restore
+                // ── Backup & Restore ─────────────────────────────────────────
                 _BackupSection(),
                 const SizedBox(height: 20),
 
-                // About
+                // ── About ────────────────────────────────────────────────────
                 _Section(
                   title: 'À propos',
                   icon: Icons.info_outlined,
                   children: [
                     _InfoRow(label: 'Version', value: '1.0.0'),
                     _InfoRow(label: 'Framework', value: 'Flutter 3.32'),
-                    _InfoRow(
-                        label: 'Plateformes',
-                        value: 'Windows · Android · iOS · Web'),
-                    _InfoRow(
-                        label: 'Base de données',
-                        value: 'SQLite (local)'),
+                    _InfoRow(label: 'Plateformes', value: 'Windows · Android · iOS · Web'),
+                    _InfoRow(label: 'Base de données', value: 'SQLite (local)'),
                   ],
                 ),
               ],
@@ -312,8 +358,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  Widget _field(TextEditingController ctrl, String label,
-          {int maxLines = 1}) =>
+  Widget _field(TextEditingController ctrl, String label, {int maxLines = 1}) =>
       Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: SizedBox(
@@ -326,11 +371,167 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       );
 }
 
+// ── Reusable List Editor ──────────────────────────────────────────────────────
+
+class _ListEditor extends ConsumerStatefulWidget {
+  const _ListEditor({
+    required this.title,
+    required this.icon,
+    required this.settingsKey,
+    required this.items,
+    this.isNumeric = false,
+  });
+  final String title;
+  final IconData icon;
+  final String settingsKey;
+  final List<String> items;
+  final bool isNumeric;
+
+  @override
+  ConsumerState<_ListEditor> createState() => _ListEditorState();
+}
+
+class _ListEditorState extends ConsumerState<_ListEditor> {
+  late List<String> _items;
+  final _addCtrl = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = List.from(widget.items);
+  }
+
+  @override
+  void didUpdateWidget(_ListEditor old) {
+    super.didUpdateWidget(old);
+    if (old.items != widget.items) {
+      _items = List.from(widget.items);
+    }
+  }
+
+  @override
+  void dispose() {
+    _addCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final encoded = widget.isNumeric
+        ? AppLists.encode(_items
+            .map((s) => double.tryParse(s) ?? 0)
+            .where((v) => v >= 0)
+            .toList())
+        : AppLists.encode(_items);
+    await DatabaseHelper.instance.setSetting(widget.settingsKey, encoded);
+    ref.invalidate(appListsProvider);
+    ref.invalidate(settingsProvider);
+    if (mounted) setState(() => _saving = false);
+  }
+
+  void _add() {
+    final v = _addCtrl.text.trim();
+    if (v.isEmpty) return;
+    if (widget.isNumeric && double.tryParse(v) == null) return;
+    if (_items.contains(v)) return;
+    setState(() => _items.add(v));
+    _addCtrl.clear();
+    _save();
+  }
+
+  void _remove(String item) {
+    setState(() => _items.remove(item));
+    _save();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Header
+        Row(children: [
+          Icon(widget.icon, size: 16, color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Text(widget.title,
+              style: theme.textTheme.labelLarge
+                  ?.copyWith(fontWeight: FontWeight.w600)),
+          if (_saving) ...[
+            const SizedBox(width: 8),
+            const SizedBox(
+                width: 12, height: 12,
+                child: CircularProgressIndicator(strokeWidth: 1.5)),
+          ],
+        ]),
+        const SizedBox(height: 10),
+
+        // Chips
+        if (_items.isEmpty)
+          Text('Aucun élément', style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant))
+        else
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _items.map((item) => Chip(
+              label: Text(item, style: const TextStyle(fontSize: 12)),
+              deleteIcon: const Icon(Icons.close, size: 14),
+              onDeleted: () => _remove(item),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+            )).toList(),
+          ),
+        const SizedBox(height: 10),
+
+        // Add row
+        Row(children: [
+          Expanded(
+            child: SizedBox(
+              height: 40,
+              child: TextField(
+                controller: _addCtrl,
+                keyboardType: widget.isNumeric
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.text,
+                decoration: InputDecoration(
+                  hintText: widget.isNumeric
+                      ? 'Nouveau taux (ex: 5)...'
+                      : 'Nouvel élément...',
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                onSubmitted: (_) => _add(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 40,
+            child: OutlinedButton.icon(
+              onPressed: _add,
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Ajouter'),
+              style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14)),
+            ),
+          ),
+        ]),
+        const Divider(height: 24),
+      ],
+    );
+  }
+}
+
+// ── Section wrapper ───────────────────────────────────────────────────────────
+
 class _Section extends StatelessWidget {
-  const _Section(
-      {required this.title,
-      required this.icon,
-      required this.children});
+  const _Section({required this.title, required this.icon, required this.children});
   final String title;
   final IconData icon;
   final List<Widget> children;
@@ -372,8 +573,8 @@ class _InfoRow extends StatelessWidget {
         SizedBox(
           width: 140,
           child: Text(label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant)),
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
         ),
         Text(value,
             style: theme.textTheme.bodyMedium
@@ -404,26 +605,21 @@ class _BackupSectionState extends State<_BackupSection> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return _Section(
       title: 'Sauvegarde & Restauration',
       icon: Icons.backup_outlined,
       children: [
         Text(
           'Exportez toutes vos données dans un fichier JSON, ou restaurez depuis une sauvegarde existante.',
-          style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant),
+          style: theme.textTheme.bodyMedium
+              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 16),
-
-        // Export button
         Row(children: [
           FilledButton.icon(
             onPressed: _loading ? null : _doExport,
             icon: _loading
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
+                ? const SizedBox(width: 16, height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.download_outlined, size: 18),
             label: const Text('Exporter les données'),
@@ -435,7 +631,6 @@ class _BackupSectionState extends State<_BackupSection> {
             label: const Text('Voir les sauvegardes'),
           ),
         ]),
-
         if (_lastMessage != null) ...[
           const SizedBox(height: 12),
           Container(
@@ -445,26 +640,20 @@ class _BackupSectionState extends State<_BackupSection> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(children: [
-              Icon(Icons.check_circle_outline,
-                  size: 16,
+              Icon(Icons.check_circle_outline, size: 16,
                   color: theme.colorScheme.onPrimaryContainer),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(_lastMessage!,
-                    style: TextStyle(
-                        fontSize: 12,
-                        color:
-                            theme.colorScheme.onPrimaryContainer)),
+                    style: TextStyle(fontSize: 12,
+                        color: theme.colorScheme.onPrimaryContainer)),
               ),
             ]),
           ),
         ],
-
         const SizedBox(height: 20),
         Divider(color: theme.colorScheme.outlineVariant),
         const SizedBox(height: 12),
-
-        // Import section
         Text('Restaurer depuis une sauvegarde',
             style: theme.textTheme.titleSmall
                 ?.copyWith(fontWeight: FontWeight.w600)),
@@ -472,8 +661,8 @@ class _BackupSectionState extends State<_BackupSection> {
         Text(
           'Entrez le chemin complet du fichier .json à restaurer. '
           'Attention : cette opération remplace toutes les données actuelles.',
-          style: theme.textTheme.bodySmall?.copyWith(
-              color: Colors.orange.shade700),
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: Colors.orange.shade700),
         ),
         const SizedBox(height: 10),
         Row(children: [
@@ -482,19 +671,16 @@ class _BackupSectionState extends State<_BackupSection> {
               controller: _importPathCtrl,
               decoration: InputDecoration(
                 labelText: 'Chemin du fichier de sauvegarde',
-                hintText:
-                    r'C:\Users\...\Documents\WinsoftBackup\winsoft_backup_....json',
+                hintText: r'C:\Users\...\Documents\WinsoftBackup\winsoft_backup_....json',
                 isDense: true,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8)),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
           ),
           const SizedBox(width: 12),
           OutlinedButton.icon(
             onPressed: _loading ? null : _doImport,
-            style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red),
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
             icon: const Icon(Icons.restore, size: 18),
             label: const Text('Restaurer'),
           ),
@@ -507,19 +693,9 @@ class _BackupSectionState extends State<_BackupSection> {
     setState(() => _loading = true);
     try {
       final path = await BackupService.export();
-      if (mounted) {
-        setState(() {
-          _lastMessage = 'Sauvegarde créée : $path';
-          _loading = false;
-        });
-      }
+      if (mounted) setState(() { _lastMessage = 'Sauvegarde créée : $path'; _loading = false; });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _lastMessage = 'Erreur lors de la sauvegarde : $e';
-          _loading = false;
-        });
-      }
+      if (mounted) setState(() { _lastMessage = 'Erreur : $e'; _loading = false; });
     }
   }
 
@@ -531,35 +707,27 @@ class _BackupSectionState extends State<_BackupSection> {
       builder: (ctx) => AlertDialog(
         title: const Text('Sauvegardes disponibles'),
         content: SizedBox(
-          width: 520,
-          height: 300,
+          width: 520, height: 300,
           child: backups.isEmpty
-              ? const Center(
-                  child: Text('Aucune sauvegarde trouvée'))
+              ? const Center(child: Text('Aucune sauvegarde trouvée'))
               : ListView.builder(
                   itemCount: backups.length,
                   itemBuilder: (_, i) {
-                    final name = backups[i].path.split(
-                        backups[i].path.contains('\\') ? '\\' : '/').last;
+                    final name = backups[i].path
+                        .split(backups[i].path.contains('\\') ? '\\' : '/')
+                        .last;
                     return ListTile(
-                      leading: const Icon(
-                          Icons.description_outlined),
-                      title: Text(name,
-                          style: const TextStyle(
-                              fontSize: 13)),
+                      leading: const Icon(Icons.description_outlined),
+                      title: Text(name, style: const TextStyle(fontSize: 13)),
                       onTap: () {
-                        _importPathCtrl.text =
-                            backups[i].path;
+                        _importPathCtrl.text = backups[i].path;
                         Navigator.of(ctx).pop();
                       },
                     );
-                  },
-                ),
+                  }),
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Fermer')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Fermer')),
         ],
       ),
     );
@@ -568,8 +736,8 @@ class _BackupSectionState extends State<_BackupSection> {
   Future<void> _doImport() async {
     final path = _importPathCtrl.text.trim();
     if (path.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Entrez le chemin du fichier de sauvegarde')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Entrez le chemin du fichier de sauvegarde')));
       return;
     }
     final confirmed = await showDialog<bool>(
@@ -579,12 +747,9 @@ class _BackupSectionState extends State<_BackupSection> {
         content: const Text(
             'Cette opération va EFFACER toutes les données actuelles et les remplacer par celles de la sauvegarde. Continuer ?'),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Annuler')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
           FilledButton(
-            style: FilledButton.styleFrom(
-                backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.of(ctx).pop(true),
             child: const Text('Restaurer'),
           ),
@@ -595,19 +760,9 @@ class _BackupSectionState extends State<_BackupSection> {
     setState(() => _loading = true);
     try {
       await BackupService.import(path);
-      if (mounted) {
-        setState(() {
-          _lastMessage = 'Restauration réussie depuis : $path';
-          _loading = false;
-        });
-      }
+      if (mounted) setState(() { _lastMessage = 'Restauration réussie depuis : $path'; _loading = false; });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _lastMessage = 'Erreur lors de la restauration : $e';
-          _loading = false;
-        });
-      }
+      if (mounted) setState(() { _lastMessage = 'Erreur : $e'; _loading = false; });
     }
   }
 }

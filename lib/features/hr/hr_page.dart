@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/models/app_lists.dart';
 import '../../core/models/employee.dart';
 import '../../core/models/payroll_slip.dart';
 import '../../core/providers/providers.dart';
@@ -167,8 +168,9 @@ class _EmployeesTabState extends ConsumerState<_EmployeesTab> {
     final cinCtrl = TextEditingController(text: emp?.cin ?? '');
     final cnssCtrl =
         TextEditingController(text: emp?.cnssNum ?? '');
-    final deptCtrl =
-        TextEditingController(text: emp?.department ?? '');
+    final depts = ref.read(appListsProvider).valueOrNull?.employeeDepartments
+        ?? AppLists.defaultEmployeeDepartments.toList();
+    String? selectedDept = depts.contains(emp?.department) ? emp!.department : null;
     final posCtrl =
         TextEditingController(text: emp?.position ?? '');
     final salaryCtrl = TextEditingController(
@@ -233,10 +235,14 @@ class _EmployeesTabState extends ConsumerState<_EmployeesTab> {
                 const SizedBox(height: 10),
                 Row(children: [
                   Expanded(
-                    child: TextFormField(
-                      controller: deptCtrl,
-                      decoration:
-                          const InputDecoration(labelText: 'Département'),
+                    child: DropdownButtonFormField<String?>(
+                      value: selectedDept,
+                      decoration: const InputDecoration(labelText: 'Département'),
+                      items: [
+                        const DropdownMenuItem(value: null, child: Text('— Choisir —')),
+                        ...depts.map((d) => DropdownMenuItem(value: d, child: Text(d))),
+                      ],
+                      onChanged: (v) => selectedDept = v,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -284,9 +290,7 @@ class _EmployeesTabState extends ConsumerState<_EmployeesTab> {
                 cnssNum: cnssCtrl.text.trim().isEmpty
                     ? null
                     : cnssCtrl.text.trim(),
-                department: deptCtrl.text.trim().isEmpty
-                    ? null
-                    : deptCtrl.text.trim(),
+                department: selectedDept,
                 position: posCtrl.text.trim().isEmpty
                     ? null
                     : posCtrl.text.trim(),
@@ -655,14 +659,9 @@ class _LeavesTab extends ConsumerStatefulWidget {
 }
 
 class _LeavesTabState extends ConsumerState<_LeavesTab> {
-  static const _types = [
-    'Congé annuel',
-    'Congé maladie',
-    'Congé maternité',
-    'Congé paternité',
-    'Congé sans solde',
-    'Autre',
-  ];
+  List<String> get _types =>
+      ref.read(appListsProvider).valueOrNull?.leaveTypes ??
+      AppLists.defaultLeaveTypes.toList();
 
   static const _statuses = ['En attente', 'Approuvé', 'Refusé', 'Annulé'];
 
