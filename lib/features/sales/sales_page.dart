@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/models/app_lists.dart';
 import '../../core/providers/providers.dart';
 import '../../core/utils/morocco_format.dart';
 
@@ -16,10 +17,8 @@ class _SalesPageState extends ConsumerState<SalesPage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final async = ref.watch(saleOrderProvider);
-    final statuses = [
-      'Tous',
-      ...MoroccoFormat.orderStatuses,
-    ];
+    final lists = ref.watch(appListsProvider).valueOrNull ?? AppLists.defaults;
+    final statuses = ['Tous', ...lists.orderStatuses];
 
     return Scaffold(
       backgroundColor: theme.colorScheme.surfaceContainerLowest,
@@ -144,7 +143,7 @@ class _SalesPageState extends ConsumerState<SalesPage> {
                                         icon: const Icon(Icons.more_vert,
                                             size: 18),
                                         itemBuilder: (ctx) =>
-                                            MoroccoFormat.orderStatuses
+                                            lists.orderStatuses
                                                 .map((s) =>
                                                     PopupMenuItem(
                                                         value: s,

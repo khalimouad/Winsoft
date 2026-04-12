@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/app_lists.dart';
+import '../models/payroll_config.dart';
 import '../models/company.dart';
 import '../models/client.dart';
 import '../models/product.dart';
@@ -193,6 +194,8 @@ class DashboardStats {
   final double hrMonthlyPayroll;
   final int lowStockCount;
 
+  final int lowStockThreshold;
+
   const DashboardStats({
     required this.totalRevenue,
     required this.pendingCount,
@@ -204,6 +207,7 @@ class DashboardStats {
     this.posRevenueTotal = 0,
     this.hrMonthlyPayroll = 0,
     this.lowStockCount = 0,
+    this.lowStockThreshold = 5,
   });
 }
 
@@ -217,6 +221,10 @@ final dashboardProvider = FutureProvider<DashboardStats>((ref) async {
   final month = now.month;
   final year  = now.year;
 
+  final settings = await ref.watch(settingsProvider.future);
+  final lowStockThreshold =
+      int.tryParse(settings['low_stock_threshold'] ?? '5') ?? 5;
+
   final results = await Future.wait([
     invoiceRepo.totalRevenue(),
     invoiceRepo.pendingCount(),
@@ -229,8 +237,8 @@ final dashboardProvider = FutureProvider<DashboardStats>((ref) async {
     db.rawQueryScalar(
       'SELECT COALESCE(SUM(salary_net),0) FROM payroll_slips WHERE period_year=? AND period_month=?',
       [year, month]),
-    // Low stock count
-    StockService.getLowStock(threshold: 5),
+    // Low stock count (threshold from settings)
+    StockService.getLowStock(threshold: lowStockThreshold),
   ]);
 
   final clients = await clientRepo.getAll();
@@ -247,6 +255,7 @@ final dashboardProvider = FutureProvider<DashboardStats>((ref) async {
     posRevenueTotal: (results[5] as num?)?.toDouble() ?? 0,
     hrMonthlyPayroll: (results[6] as num?)?.toDouble() ?? 0,
     lowStockCount: (results[7] as List).length,
+    lowStockThreshold: lowStockThreshold,
   );
 });
 
@@ -260,6 +269,14 @@ final settingsProvider = FutureProvider<Map<String, String>>((ref) async {
 final appListsProvider = FutureProvider<AppLists>((ref) async {
   final settings = await ref.watch(settingsProvider.future);
   return AppLists.fromSettings(settings);
+});
+
+/// Moroccan payroll configuration (CNSS/AMO rates + IGR brackets).
+final payrollConfigProvider = FutureProvider<PayrollConfig>((ref) async {
+  final settings = await ref.watch(settingsProvider.future);
+  final raw = settings[PayrollConfig.kSettings];
+  if (raw == null || raw.isEmpty) return PayrollConfig.defaults;
+  return PayrollConfig.fromJson(raw);
 });
 
 // ── Suppliers ─────────────────────────────────────────────────────────────

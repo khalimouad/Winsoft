@@ -130,7 +130,7 @@ class _DashboardBody extends StatelessWidget {
 
           // ── Low stock alert ─────────────────────────────────────────────────
           if (stats.lowStockCount > 0) ...[
-            _LowStockBanner(count: stats.lowStockCount),
+            _LowStockBanner(count: stats.lowStockCount, threshold: stats.lowStockThreshold),
             const SizedBox(height: 20),
           ],
 
@@ -165,8 +165,9 @@ class _DashboardBody extends StatelessWidget {
 // ── Low stock banner ──────────────────────────────────────────────────────────
 
 class _LowStockBanner extends StatefulWidget {
-  const _LowStockBanner({required this.count});
+  const _LowStockBanner({required this.count, this.threshold = 5});
   final int count;
+  final int threshold;
 
   @override
   State<_LowStockBanner> createState() => _LowStockBannerState();
@@ -179,7 +180,7 @@ class _LowStockBannerState extends State<_LowStockBanner> {
   @override
   void initState() {
     super.initState();
-    StockService.getLowStock(threshold: 5)
+    StockService.getLowStock(threshold: widget.threshold)
         .then((v) { if (mounted) setState(() { _items = v; _loaded = true; }); });
   }
 

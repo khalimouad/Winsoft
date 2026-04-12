@@ -248,7 +248,7 @@ class PdfService {
           pw.SizedBox(height: 12),
           // Deductions
           _payrollSection('RETENUES SALARIALES', [
-            ['CNSS (${(MoroccoFormat.tvaRates.first).toStringAsFixed(0)}) — Employé',
+            ['CNSS (5.44%) — Employé',
                 '- ${MoroccoFormat.mad(slip.cnssEmployee)}'],
             ['AMO — Employé', '- ${MoroccoFormat.mad(slip.amoEmployee)}'],
             ['IR (IGR)', '- ${MoroccoFormat.mad(slip.igr)}'],

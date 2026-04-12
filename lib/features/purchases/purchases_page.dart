@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/models/app_lists.dart';
 import '../../core/models/supplier.dart';
 import '../../core/models/purchase_order.dart';
 import '../../core/models/supplier_invoice.dart';
@@ -464,7 +465,8 @@ class _PurchaseOrdersTab extends ConsumerWidget {
         title: Text(order.reference),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          children: PurchaseOrder.statuses.map((s) {
+          children: (ref.read(appListsProvider).valueOrNull?.purchaseOrderStatuses
+              ?? AppLists.defaultPurchaseOrderStatuses).map((s) {
             return ListTile(
               title: Text(s),
               leading: Radio<String>(
@@ -685,7 +687,9 @@ class _SupplierInvoicesTab extends ConsumerWidget {
                                 fontWeight: FontWeight.bold)),
                         PopupMenuButton<String>(
                           icon: const Icon(Icons.more_vert, size: 18),
-                          itemBuilder: (_) => SupplierInvoice.statuses
+                          itemBuilder: (_) =>
+                              (ref.read(appListsProvider).valueOrNull?.supplierInvoiceStatuses
+                                  ?? AppLists.defaultSupplierInvoiceStatuses)
                               .map((s) => PopupMenuItem(
                                   value: s, child: Text(s)))
                               .toList(),
@@ -794,10 +798,13 @@ class _SupplierInvoicesTab extends ConsumerWidget {
                 final repo  = ref.read(supplierInvoiceRepoProvider);
                 final seq   = await repo.nextSequence();
                 final now   = DateTime.now().millisecondsSinceEpoch;
-                final due   = now + const Duration(days: 30).inMilliseconds;
+                final s     = ref.read(settingsProvider).valueOrNull ?? {};
+                final dueDays = int.tryParse(s['invoice_due_days'] ?? '30') ?? 30;
+                final due   = now + Duration(days: dueDays).inMilliseconds;
+                final siPrefix = s['si_prefix'] ?? 'FF';
                 final inv   = SupplierInvoice(
                   reference: refCtrl.text.trim().isEmpty
-                      ? 'FF-${DateTime.now().year}-${seq.toString().padLeft(3, '0')}'
+                      ? '$siPrefix-${DateTime.now().year}-${seq.toString().padLeft(3, '0')}'
                       : refCtrl.text.trim(),
                   supplierId: selectedSupplierId!,
                   issuedDate: now,

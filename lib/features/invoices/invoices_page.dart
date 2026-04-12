@@ -4,6 +4,7 @@ import '../../core/models/invoice.dart';
 import '../../core/models/client.dart';
 import '../../core/models/credit_note.dart';
 import '../../core/models/recurring_template.dart';
+import '../../core/models/app_lists.dart';
 import '../../core/providers/providers.dart';
 import '../../core/services/pdf_service.dart';
 import '../../core/utils/morocco_format.dart';
@@ -85,7 +86,8 @@ class _InvoicesTabState extends ConsumerState<_InvoicesTab> {
     final theme     = Theme.of(context);
     final async     = ref.watch(invoiceProvider);
     final settings  = ref.watch(settingsProvider).valueOrNull ?? {};
-    final statuses  = ['Tous', ...MoroccoFormat.invoiceStatuses];
+    final lists     = ref.watch(appListsProvider).valueOrNull ?? AppLists.defaults;
+    final statuses  = ['Tous', ...lists.invoiceStatuses];
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -218,7 +220,7 @@ class _InvoicesTabState extends ConsumerState<_InvoicesTab> {
                             PopupMenuButton<String>(
                               icon: const Icon(Icons.more_vert, size: 18),
                               itemBuilder: (ctx) =>
-                                  MoroccoFormat.invoiceStatuses
+                                  lists.invoiceStatuses
                                       .map((s) => PopupMenuItem(
                                           value: s, child: Text(s)))
                                       .toList(),
@@ -330,11 +332,13 @@ class _InvoicesTabState extends ConsumerState<_InvoicesTab> {
                   final qty   = double.tryParse(qtyCtrl.text) ?? 1;
                   final price = double.tryParse(priceCtrl.text) ?? 0;
                   final ht    = qty * price;
-                  final tva   = ht * 0.20;
+                  final tvaRate = (double.tryParse(ref.read(settingsProvider).valueOrNull?['tva_default'] ?? '20') ?? 20) / 100;
+                  final tva   = ht * tvaRate;
                   final repo  = ref.read(invoiceRepoProvider);
                   final seq   = await repo.nextSequence();
                   final now   = DateTime.now();
-                  final due   = now.add(const Duration(days: 30));
+                  final dueDays = int.tryParse(ref.read(settingsProvider).valueOrNull?['invoice_due_days'] ?? '30') ?? 30;
+                  final due   = now.add(Duration(days: dueDays));
                   final invoice = Invoice(
                     reference: '${ref.read(settingsProvider).valueOrNull?['invoice_prefix'] ?? 'FAC'}-${now.year}-${seq.toString().padLeft(3, '0')}',
                     clientId: selectedClientId!,
@@ -446,8 +450,9 @@ class _CreditNotesTab extends ConsumerWidget {
                         PopupMenuButton<String>(
                           icon: const Icon(Icons.more_vert, size: 18),
                           itemBuilder: (_) => [
-                            ...CreditNote.statuses.map((s) =>
-                                PopupMenuItem(value: s, child: Text(s))),
+                            ...(ref.read(appListsProvider).valueOrNull?.creditNoteStatuses
+                                ?? AppLists.defaultCreditNoteStatuses)
+                                .map((s) => PopupMenuItem(value: s, child: Text(s))),
                             const PopupMenuDivider(),
                             const PopupMenuItem(
                                 value: '__delete',
@@ -725,7 +730,8 @@ class _RecurringTab extends ConsumerWidget {
       final repo  = ref.read(invoiceRepoProvider);
       final seq   = await repo.nextSequence();
       final now   = DateTime.now();
-      final due   = now.add(const Duration(days: 30));
+      final dueDays = int.tryParse(ref.read(settingsProvider).valueOrNull?['invoice_due_days'] ?? '30') ?? 30;
+      final due   = now.add(Duration(days: dueDays));
       final items = t.items.map((ri) => InvoiceItem(
         invoiceId: 0,
         description: ri.description,

@@ -17,12 +17,6 @@ class MoroccoFormat {
 
   // ── TVA ───────────────────────────────────────────────────────────────────
 
-  /// Moroccan TVA rates
-  static const List<double> tvaRates = [0, 7, 10, 14, 20];
-
-  /// Standard TVA rate (default)
-  static const double tvaStandard = 20.0;
-
   /// Calculate TTC from HT + TVA rate
   static double ttcFromHt(double ht, double tvaRate) =>
       ht * (1 + tvaRate / 100);
@@ -76,32 +70,6 @@ class MoroccoFormat {
     return raw;
   }
 
-  // ── Moroccan cities ───────────────────────────────────────────────────────
-
-  static const List<String> cities = [
-    'Casablanca',
-    'Rabat',
-    'Marrakech',
-    'Fès',
-    'Tanger',
-    'Agadir',
-    'Meknès',
-    'Oujda',
-    'Kénitra',
-    'Tétouan',
-    'Salé',
-    'Mohammedia',
-    'El Jadida',
-    'Beni Mellal',
-    'Nador',
-    'Settat',
-    'Berrechid',
-    'Khouribga',
-    'Taza',
-    'Safi',
-    'Autre',
-  ];
-
   // ── Numbering sequences ───────────────────────────────────────────────────
 
   /// Generate invoice reference: "FAC-2026-001"
@@ -116,21 +84,4 @@ class MoroccoFormat {
     return 'BC-$year-${sequence.toString().padLeft(3, '0')}';
   }
 
-  // ── Status labels (French) ────────────────────────────────────────────────
-
-  static const invoiceStatuses = [
-    'Brouillon',
-    'Envoyée',
-    'Payée',
-    'En retard',
-  ];
-
-  static const orderStatuses = [
-    'En attente',
-    'En cours',
-    'Terminée',
-    'Annulée',
-  ];
-
-  static const companyStatuses = ['Active', 'Inactive'];
 }

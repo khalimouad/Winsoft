@@ -30,8 +30,6 @@ class CreditNote {
   final String? clientName;
   final String? invoiceReference;
 
-  static const List<String> statuses = ['Brouillon', 'Émis', 'Appliqué'];
-
   factory CreditNote.fromMap(Map<String, dynamic> m) => CreditNote(
         id: m['id'] as int?,
         reference: m['reference'] as String,

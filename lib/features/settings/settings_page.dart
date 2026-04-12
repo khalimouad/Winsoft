@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app.dart';
 import '../../core/database/database_helper.dart';
 import '../../core/models/app_lists.dart';
+import '../../core/models/payroll_config.dart';
 import '../../core/providers/providers.dart';
 import '../../core/providers/language_provider.dart';
 import '../../core/services/backup_service.dart';
@@ -25,9 +26,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _prefixCtrl  = TextEditingController();
   final _poPrefix    = TextEditingController();
   final _cnPrefix    = TextEditingController();
+  final _ecPrefix    = TextEditingController();
+  final _siPrefix    = TextEditingController();
   final _termsCtrl   = TextEditingController();
   final _notesCtrl   = TextEditingController();
-  String _selectedCity = MoroccoFormat.cities.first;
+  // Valeurs par défaut
+  final _invoiceDueDaysCtrl      = TextEditingController();
+  final _lowStockCtrl            = TextEditingController();
+  final _leaveDaysCtrl           = TextEditingController();
+  final _mfgLeadDaysCtrl         = TextEditingController();
+  String _selectedCity = AppLists.defaultCities.first;
   double _tvaDefault = 20.0;
   bool _loaded = false;
 
@@ -43,8 +51,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _prefixCtrl.dispose();
     _poPrefix.dispose();
     _cnPrefix.dispose();
+    _ecPrefix.dispose();
+    _siPrefix.dispose();
     _termsCtrl.dispose();
     _notesCtrl.dispose();
+    _invoiceDueDaysCtrl.dispose();
+    _lowStockCtrl.dispose();
+    _leaveDaysCtrl.dispose();
+    _mfgLeadDaysCtrl.dispose();
     super.dispose();
   }
 
@@ -71,12 +85,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           _prefixCtrl.text  = settings['invoice_prefix'] ?? 'FAC';
           _poPrefix.text    = settings['po_prefix'] ?? 'BA';
           _cnPrefix.text    = settings['cn_prefix'] ?? 'AV';
+          _ecPrefix.text    = settings['ec_prefix'] ?? 'EC';
+          _siPrefix.text    = settings['si_prefix'] ?? 'FF';
           _termsCtrl.text   = settings['invoice_terms'] ?? '30 jours net';
           _notesCtrl.text   = settings['invoice_notes'] ?? '';
-          final city = settings['company_city'] ?? MoroccoFormat.cities.first;
-          _selectedCity = MoroccoFormat.cities.contains(city)
+          _invoiceDueDaysCtrl.text = settings['invoice_due_days'] ?? '30';
+          _lowStockCtrl.text       = settings['low_stock_threshold'] ?? '5';
+          _leaveDaysCtrl.text      = settings['default_leave_days'] ?? '5';
+          _mfgLeadDaysCtrl.text    = settings['manufacturing_lead_days'] ?? '7';
+          final city = settings['company_city'] ?? AppLists.defaultCities.first;
+          _selectedCity = lists.cities.contains(city)
               ? city
-              : MoroccoFormat.cities.first;
+              : AppLists.defaultCities.first;
           _tvaDefault = double.tryParse(settings['tva_default'] ?? '20') ?? 20;
           _loaded = true;
         }
@@ -110,7 +130,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       builder: (ctx, ss) => DropdownButtonFormField<String>(
                         value: lists.cities.contains(_selectedCity)
                             ? _selectedCity
-                            : lists.cities.first,
+                            : (lists.cities.isNotEmpty ? lists.cities.first : _selectedCity),
                         decoration: const InputDecoration(labelText: 'Ville'),
                         items: lists.cities
                             .map((c) => DropdownMenuItem(value: c, child: Text(c)))
@@ -143,9 +163,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     Row(children: [
                       Expanded(child: _field(_prefixCtrl, 'Préfixe facture (ex: FAC)')),
                       const SizedBox(width: 12),
-                      Expanded(child: _field(_poPrefix, 'Préfixe bon de commande (ex: BA)')),
+                      Expanded(child: _field(_poPrefix, 'Préfixe bon commande (ex: BA)')),
                       const SizedBox(width: 12),
                       Expanded(child: _field(_cnPrefix, 'Préfixe avoir (ex: AV)')),
+                    ]),
+                    Row(children: [
+                      Expanded(child: _field(_ecPrefix, 'Préfixe écriture compta (ex: EC)')),
+                      const SizedBox(width: 12),
+                      Expanded(child: _field(_siPrefix, 'Préfixe fact. fournisseur (ex: FF)')),
+                      const SizedBox(width: 12),
+                      const Expanded(child: SizedBox.shrink()),
                     ]),
                     _field(_termsCtrl, 'Conditions de paiement'),
                     StatefulBuilder(
@@ -251,6 +278,116 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                     const SizedBox(height: 16),
                     _JournalEditor(journals: lists.journals),
                   ],
+                ),
+                const SizedBox(height: 20),
+
+                // ── Document Statuses ────────────────────────────────────────
+                _Section(
+                  title: 'Statuts des documents',
+                  icon: Icons.rule_outlined,
+                  children: [
+                    Text(
+                      'Personnalisez les statuts disponibles pour chaque type de document.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 20),
+                    _ListEditor(
+                      title: 'Statuts factures',
+                      icon: Icons.receipt_outlined,
+                      settingsKey: AppLists.kInvoiceStatuses,
+                      items: lists.invoiceStatuses,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Statuts bons de commande (ventes)',
+                      icon: Icons.shopping_cart_outlined,
+                      settingsKey: AppLists.kOrderStatuses,
+                      items: lists.orderStatuses,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Statuts bons de commande (achats)',
+                      icon: Icons.local_shipping_outlined,
+                      settingsKey: AppLists.kPurchaseOrderStatuses,
+                      items: lists.purchaseOrderStatuses,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Statuts factures fournisseurs',
+                      icon: Icons.request_quote_outlined,
+                      settingsKey: AppLists.kSupplierInvoiceStatuses,
+                      items: lists.supplierInvoiceStatuses,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Statuts avoirs',
+                      icon: Icons.undo_outlined,
+                      settingsKey: AppLists.kCreditNoteStatuses,
+                      items: lists.creditNoteStatuses,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Statuts bulletins de paie',
+                      icon: Icons.description_outlined,
+                      settingsKey: AppLists.kPayrollStatuses,
+                      items: lists.payrollStatuses,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Statuts ordres de fabrication',
+                      icon: Icons.precision_manufacturing_outlined,
+                      settingsKey: AppLists.kProductionStatuses,
+                      items: lists.productionStatuses,
+                    ),
+                    const SizedBox(height: 16),
+                    _ListEditor(
+                      title: 'Statuts demandes de congé',
+                      icon: Icons.event_available_outlined,
+                      settingsKey: AppLists.kLeaveStatuses,
+                      items: lists.leaveStatuses,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // ── Business Defaults ────────────────────────────────────────
+                _Section(
+                  title: 'Valeurs par défaut',
+                  icon: Icons.tune_outlined,
+                  children: [
+                    Row(children: [
+                      Expanded(child: _field(_invoiceDueDaysCtrl, 'Délai de paiement facture (jours)')),
+                      const SizedBox(width: 12),
+                      Expanded(child: _field(_lowStockCtrl, 'Seuil alerte stock bas (unités)')),
+                    ]),
+                    Row(children: [
+                      Expanded(child: _field(_leaveDaysCtrl, 'Durée congé par défaut (jours)')),
+                      const SizedBox(width: 12),
+                      Expanded(child: _field(_mfgLeadDaysCtrl, 'Délai de fabrication (jours)')),
+                    ]),
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      onPressed: _saveDocumentDefaults,
+                      child: const Text('Enregistrer les valeurs'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // ── Payroll Configuration ────────────────────────────────────
+                Consumer(
+                  builder: (ctx, ref, _) {
+                    final configAsync = ref.watch(payrollConfigProvider);
+                    final config = configAsync.valueOrNull ?? PayrollConfig.defaults;
+                    return _Section(
+                      title: 'Configuration paie (CNSS / AMO / IGR)',
+                      icon: Icons.account_balance_wallet_outlined,
+                      children: [
+                        _PayrollConfigEditor(config: config),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 20),
 
@@ -363,6 +500,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     await db.setSetting('invoice_prefix', _prefixCtrl.text.trim().isEmpty ? 'FAC' : _prefixCtrl.text.trim());
     await db.setSetting('po_prefix', _poPrefix.text.trim().isEmpty ? 'BA' : _poPrefix.text.trim());
     await db.setSetting('cn_prefix', _cnPrefix.text.trim().isEmpty ? 'AV' : _cnPrefix.text.trim());
+    await db.setSetting('ec_prefix', _ecPrefix.text.trim().isEmpty ? 'EC' : _ecPrefix.text.trim());
+    await db.setSetting('si_prefix', _siPrefix.text.trim().isEmpty ? 'FF' : _siPrefix.text.trim());
     await db.setSetting('invoice_terms', _termsCtrl.text.trim());
     await db.setSetting('invoice_notes', _notesCtrl.text.trim());
     await db.setSetting('tva_default', _tvaDefault.toString());
@@ -370,6 +509,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Paramètres enregistrés'),
+          behavior: SnackBarBehavior.floating));
+    }
+  }
+
+  Future<void> _saveDocumentDefaults() async {
+    final db = DatabaseHelper.instance;
+    await db.setSetting('invoice_due_days',
+        _invoiceDueDaysCtrl.text.trim().isEmpty ? '30' : _invoiceDueDaysCtrl.text.trim());
+    await db.setSetting('low_stock_threshold',
+        _lowStockCtrl.text.trim().isEmpty ? '5' : _lowStockCtrl.text.trim());
+    await db.setSetting('default_leave_days',
+        _leaveDaysCtrl.text.trim().isEmpty ? '5' : _leaveDaysCtrl.text.trim());
+    await db.setSetting('manufacturing_lead_days',
+        _mfgLeadDaysCtrl.text.trim().isEmpty ? '7' : _mfgLeadDaysCtrl.text.trim());
+    ref.invalidate(settingsProvider);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Valeurs enregistrées'),
           behavior: SnackBarBehavior.floating));
     }
   }
@@ -983,5 +1140,271 @@ class _BackupSectionState extends State<_BackupSection> {
     } catch (e) {
       if (mounted) setState(() { _lastMessage = 'Erreur : $e'; _loading = false; });
     }
+  }
+}
+
+// ── Payroll Config Editor ─────────────────────────────────────────────────────
+
+class _PayrollConfigEditor extends ConsumerStatefulWidget {
+  const _PayrollConfigEditor({required this.config});
+  final PayrollConfig config;
+
+  @override
+  ConsumerState<_PayrollConfigEditor> createState() => _PayrollConfigEditorState();
+}
+
+class _PayrollConfigEditorState extends ConsumerState<_PayrollConfigEditor> {
+  late TextEditingController _cnssEmployee;
+  late TextEditingController _cnssEmployer;
+  late TextEditingController _cnssEmpApec;
+  late TextEditingController _cnssEmrApec;
+  late TextEditingController _cnssPlafond;
+  late TextEditingController _amoEmployee;
+  late TextEditingController _amoEmployer;
+  late List<IgrBracket> _brackets;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFrom(widget.config);
+  }
+
+  @override
+  void didUpdateWidget(_PayrollConfigEditor old) {
+    super.didUpdateWidget(old);
+    if (old.config != widget.config) _loadFrom(widget.config);
+  }
+
+  void _loadFrom(PayrollConfig c) {
+    _cnssEmployee = TextEditingController(text: _pct(c.cnssEmployeeRate));
+    _cnssEmployer = TextEditingController(text: _pct(c.cnssEmployerRate));
+    _cnssEmpApec  = TextEditingController(text: _pct(c.cnssEmployeeApec));
+    _cnssEmrApec  = TextEditingController(text: _pct(c.cnssEmployerApec));
+    _cnssPlafond  = TextEditingController(text: c.cnssPlafond.toStringAsFixed(0));
+    _amoEmployee  = TextEditingController(text: _pct(c.amoEmployeeRate));
+    _amoEmployer  = TextEditingController(text: _pct(c.amoEmployerRate));
+    _brackets     = List.from(c.igrBrackets);
+  }
+
+  String _pct(double v) => (v * 100).toStringAsFixed(4).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+
+  @override
+  void dispose() {
+    _cnssEmployee.dispose();
+    _cnssEmployer.dispose();
+    _cnssEmpApec.dispose();
+    _cnssEmrApec.dispose();
+    _cnssPlafond.dispose();
+    _amoEmployee.dispose();
+    _amoEmployer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final config = PayrollConfig(
+      cnssEmployeeRate: (double.tryParse(_cnssEmployee.text) ?? 4.48) / 100,
+      cnssEmployerRate: (double.tryParse(_cnssEmployer.text) ?? 10.64) / 100,
+      cnssEmployeeApec: (double.tryParse(_cnssEmpApec.text) ?? 0.96) / 100,
+      cnssEmployerApec: (double.tryParse(_cnssEmrApec.text) ?? 3.96) / 100,
+      cnssPlafond:       double.tryParse(_cnssPlafond.text) ?? 6000.0,
+      amoEmployeeRate:  (double.tryParse(_amoEmployee.text) ?? 2.26) / 100,
+      amoEmployerRate:  (double.tryParse(_amoEmployer.text) ?? 4.11) / 100,
+      igrBrackets:       _brackets,
+    );
+    await DatabaseHelper.instance.setSetting(PayrollConfig.kSettings, config.toJson());
+    ref.invalidate(settingsProvider);
+    ref.invalidate(payrollConfigProvider);
+    if (mounted) {
+      setState(() => _saving = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Configuration paie enregistrée'),
+          behavior: SnackBarBehavior.floating));
+    }
+  }
+
+  Widget _rateField(TextEditingController ctrl, String label) => Padding(
+    padding: const EdgeInsets.only(bottom: 10),
+    child: SizedBox(
+      width: 220,
+      child: TextField(
+        controller: ctrl,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          labelText: label,
+          suffixText: '%',
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // ── CNSS ──────────────────────────────────────────────────────────────
+      Text('CNSS', style: theme.textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w600, color: theme.colorScheme.primary)),
+      const SizedBox(height: 8),
+      Wrap(spacing: 12, runSpacing: 0, children: [
+        _rateField(_cnssEmployee, 'Part salariale (%)'),
+        _rateField(_cnssEmployer, 'Part patronale (%)'),
+        _rateField(_cnssEmpApec,  'APEC salariale (%)'),
+        _rateField(_cnssEmrApec,  'APEC patronale (%)'),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: SizedBox(
+            width: 220,
+            child: TextField(
+              controller: _cnssPlafond,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Plafond mensuel (DH)',
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+          ),
+        ),
+      ]),
+      const SizedBox(height: 12),
+
+      // ── AMO ───────────────────────────────────────────────────────────────
+      Text('AMO (Assurance maladie)', style: theme.textTheme.labelLarge?.copyWith(
+          fontWeight: FontWeight.w600, color: theme.colorScheme.primary)),
+      const SizedBox(height: 8),
+      Wrap(spacing: 12, runSpacing: 0, children: [
+        _rateField(_amoEmployee, 'Part salariale (%)'),
+        _rateField(_amoEmployer, 'Part patronale (%)'),
+      ]),
+      const SizedBox(height: 12),
+
+      // ── IGR Brackets ──────────────────────────────────────────────────────
+      Row(children: [
+        Text('Tranches IGR (IR)', style: theme.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w600, color: theme.colorScheme.primary)),
+        const SizedBox(width: 8),
+        OutlinedButton.icon(
+          onPressed: _addBracket,
+          icon: const Icon(Icons.add, size: 14),
+          label: const Text('Ajouter tranche'),
+          style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              visualDensity: VisualDensity.compact),
+        ),
+      ]),
+      const SizedBox(height: 8),
+      Table(
+        columnWidths: const {
+          0: FlexColumnWidth(2),
+          1: FlexColumnWidth(1),
+          2: FixedColumnWidth(36),
+        },
+        children: [
+          TableRow(
+            decoration: BoxDecoration(color: theme.colorScheme.surfaceContainerLowest),
+            children: [
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                  child: Text("Jusqu'à (DH/an)", style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant))),
+              Padding(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                  child: Text('Taux (%)', style: theme.textTheme.labelSmall?.copyWith(
+                      fontWeight: FontWeight.w600, color: theme.colorScheme.onSurfaceVariant))),
+              const SizedBox.shrink(),
+            ],
+          ),
+          ..._brackets.asMap().entries.map((e) {
+            final i = e.key;
+            final b = e.value;
+            final isLast = b.maxIncome.isInfinite;
+            final maxCtrl = TextEditingController(
+                text: isLast ? '∞' : b.maxIncome.toStringAsFixed(0));
+            final rateCtrl = TextEditingController(text: _pct(b.rate));
+            return TableRow(children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: TextField(
+                  controller: maxCtrl,
+                  enabled: !isLast,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  onSubmitted: (v) => _updateBracketMax(i, v),
+                  onEditingComplete: () => _updateBracketMax(i, maxCtrl.text),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: TextField(
+                  controller: rateCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    suffixText: '%',
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  onSubmitted: (v) => _updateBracketRate(i, v),
+                  onEditingComplete: () => _updateBracketRate(i, rateCtrl.text),
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.delete_outline, size: 14,
+                    color: isLast ? Colors.transparent : theme.colorScheme.error),
+                onPressed: isLast ? null : () => _removeBracket(i),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ]);
+          }),
+        ],
+      ),
+      const SizedBox(height: 16),
+      FilledButton(
+        onPressed: _saving ? null : _save,
+        child: _saving
+            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Text('Enregistrer la configuration paie'),
+      ),
+    ]);
+  }
+
+  void _addBracket() {
+    setState(() {
+      final lastIdx = _brackets.indexWhere((b) => b.maxIncome.isInfinite);
+      _brackets.insert(lastIdx < 0 ? _brackets.length : lastIdx,
+          const IgrBracket(maxIncome: 100000, rate: 0, baseAmount: 0));
+    });
+  }
+
+  void _removeBracket(int i) {
+    if (_brackets[i].maxIncome.isInfinite) return;
+    setState(() => _brackets.removeAt(i));
+  }
+
+  void _updateBracketMax(int i, String v) {
+    final val = double.tryParse(v);
+    if (val == null) return;
+    setState(() {
+      _brackets[i] = IgrBracket(
+          maxIncome: val, rate: _brackets[i].rate, baseAmount: _brackets[i].baseAmount);
+    });
+  }
+
+  void _updateBracketRate(int i, String v) {
+    final val = double.tryParse(v);
+    if (val == null) return;
+    setState(() {
+      _brackets[i] = IgrBracket(
+          maxIncome: _brackets[i].maxIncome, rate: val / 100, baseAmount: _brackets[i].baseAmount);
+    });
   }
 }

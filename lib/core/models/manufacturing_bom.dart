@@ -135,10 +135,6 @@ class ProductionOrder {
   final String? bomName;
   final List<ProductionOutput> outputs;
 
-  static const List<String> statuses = [
-    'Brouillon', 'Planifié', 'En cours', 'Terminé', 'Annulé'
-  ];
-
   factory ProductionOrder.fromMap(Map<String, dynamic> m,
           {List<ProductionOutput> outputs = const []}) =>
       ProductionOrder(

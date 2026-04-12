@@ -221,7 +221,7 @@ class _ClientsPageState extends ConsumerState<ClientsPage> {
     final cnssCtrl    = TextEditingController(text: client?.cnssNum ?? '');
     final ribCtrl     = TextEditingController(text: client?.rib ?? '');
     String selectedCity = client?.city ??
-        (lists.cities.isNotEmpty ? lists.cities.first : MoroccoFormat.cities.first);
+        (lists.cities.isNotEmpty ? lists.cities.first : AppLists.defaultCities.first);
     int? selectedCompanyId = client?.companyId;
     String? selectedForme = client?.formeJuridique;
 

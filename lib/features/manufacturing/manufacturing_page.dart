@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/models/app_lists.dart';
 import '../../core/models/manufacturing_bom.dart';
 import '../../core/models/product.dart';
 import '../../core/providers/providers.dart';
@@ -509,7 +510,8 @@ class _ProductionOrdersTab extends ConsumerWidget {
                       trailing: PopupMenuButton<String>(
                         icon: const Icon(Icons.more_vert, size: 18),
                         itemBuilder: (_) =>
-                            ProductionOrder.statuses
+                            (ref.read(appListsProvider).valueOrNull?.productionStatuses
+                                ?? AppLists.defaultProductionStatuses)
                                 .map((s) => PopupMenuItem(
                                     value: s,
                                     child: Text(s)))
@@ -541,8 +543,10 @@ class _ProductionOrdersTab extends ConsumerWidget {
       return;
     }
     int? selectedBomId = boms.first.id;
+    final mfgLeadDays = int.tryParse(
+        ref.read(settingsProvider).valueOrNull?['manufacturing_lead_days'] ?? '7') ?? 7;
     final dateCtrl = TextEditingController(
-        text: MoroccoFormat.date(DateTime.now().add(const Duration(days: 7))));
+        text: MoroccoFormat.date(DateTime.now().add(Duration(days: mfgLeadDays))));
     final formKey = GlobalKey<FormState>();
 
     showDialog(
@@ -592,7 +596,7 @@ class _ProductionOrdersTab extends ConsumerWidget {
                       int.parse(parts[1]), int.parse(parts[0]));
                 }
                 planned ??=
-                    DateTime.now().add(const Duration(days: 7));
+                    DateTime.now().add(Duration(days: mfgLeadDays));
 
                 final mfgRepo =
                     ref.read(manufacturingRepoProvider);

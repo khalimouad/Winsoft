@@ -663,7 +663,9 @@ class _LeavesTabState extends ConsumerState<_LeavesTab> {
       ref.read(appListsProvider).valueOrNull?.leaveTypes ??
       AppLists.defaultLeaveTypes.toList();
 
-  static const _statuses = ['En attente', 'Approuvé', 'Refusé', 'Annulé'];
+  List<String> get _statuses =>
+      ref.read(appListsProvider).valueOrNull?.leaveStatuses ??
+      AppLists.defaultLeaveStatuses.toList();
 
   static const _statusColors = {
     'En attente': Colors.orange,
@@ -692,7 +694,7 @@ class _LeavesTabState extends ConsumerState<_LeavesTab> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final statuses = ['Tous', ..._statuses];
+    final statuses = ['Tous', ..._statuses]; // ignore: prefer_const_literals_to_create_immutables
 
     final filtered = _filterStatus == 'Tous'
         ? _leaves
@@ -819,7 +821,9 @@ class _LeavesTabState extends ConsumerState<_LeavesTab> {
       int? selectedEmpId = employees.first.id;
       String selectedType = _types.first;
       DateTime startDate = DateTime.now();
-      DateTime endDate   = DateTime.now().add(const Duration(days: 5));
+      final leaveDays = int.tryParse(
+          ref.read(settingsProvider).valueOrNull?['default_leave_days'] ?? '5') ?? 5;
+      DateTime endDate   = DateTime.now().add(Duration(days: leaveDays));
       final reasonCtrl = TextEditingController();
       final formKey = GlobalKey<FormState>();
 

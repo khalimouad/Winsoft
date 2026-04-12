@@ -41,8 +41,6 @@ class PayrollSlip {
   final String? employeeCin;
   final String? employeePosition;
 
-  static const List<String> statuses = ['Brouillon', 'Validé', 'Payé'];
-
   String get periodLabel {
     const months = [
       '', 'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',

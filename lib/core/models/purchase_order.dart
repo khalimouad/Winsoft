@@ -75,10 +75,6 @@ class PurchaseOrder {
   final String? supplierName;
   final List<PurchaseOrderItem> items;
 
-  static const List<String> statuses = [
-    'Brouillon', 'Envoyé', 'Reçu', 'Partiel', 'Annulé',
-  ];
-
   factory PurchaseOrder.fromMap(Map<String, dynamic> m,
           {List<PurchaseOrderItem> items = const []}) =>
       PurchaseOrder(

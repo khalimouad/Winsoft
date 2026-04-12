@@ -269,9 +269,10 @@ class _JournalTab extends ConsumerWidget {
                 final amount = double.tryParse(amountCtrl.text) ?? 0;
                 final repo = ref.read(accountingRepoProvider);
                 final seq = await repo.nextSequence();
+                final ecPrefix = ref.read(settingsProvider).valueOrNull?['ec_prefix'] ?? 'EC';
                 final entry = JournalEntry(
                   reference:
-                      'EC-${DateTime.now().year}-${seq.toString().padLeft(4, '0')}',
+                      '$ecPrefix-${DateTime.now().year}-${seq.toString().padLeft(4, '0')}',
                   date: DateTime.now().millisecondsSinceEpoch,
                   description: descCtrl.text.trim(),
                   journal: selectedJournal,

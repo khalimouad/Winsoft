@@ -30,10 +30,6 @@ class SupplierInvoice {
   final String? supplierName;
   final List<SupplierInvoiceItem> items;
 
-  static const List<String> statuses = [
-    'Reçue', 'Validée', 'Payée', 'Contestée', 'Annulée',
-  ];
-
   bool get isOverdue =>
       status != 'Payée' &&
       status != 'Annulée' &&

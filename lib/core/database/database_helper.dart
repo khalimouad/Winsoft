@@ -892,9 +892,17 @@ class DatabaseHelper {
     await db.insert('settings', {'key': 'company_rc', 'value': ''});
     await db.insert('settings', {'key': 'company_if', 'value': ''});
     await db.insert('settings', {'key': 'invoice_prefix', 'value': 'FAC'});
-    await db.insert('settings', {'key': 'invoice_terms', 'value': '30 jours net'});
-    await db.insert('settings', {'key': 'invoice_notes', 'value': 'Merci pour votre confiance.'});
-    await db.insert('settings', {'key': 'tva_default', 'value': '20'});
+    await db.insert('settings', {'key': 'po_prefix',      'value': 'BA'});
+    await db.insert('settings', {'key': 'cn_prefix',      'value': 'AV'});
+    await db.insert('settings', {'key': 'ec_prefix',      'value': 'EC'});
+    await db.insert('settings', {'key': 'si_prefix',      'value': 'FF'});
+    await db.insert('settings', {'key': 'invoice_terms',  'value': '30 jours net'});
+    await db.insert('settings', {'key': 'invoice_notes',  'value': 'Merci pour votre confiance.'});
+    await db.insert('settings', {'key': 'tva_default',    'value': '20'});
+    await db.insert('settings', {'key': 'invoice_due_days',        'value': '30'});
+    await db.insert('settings', {'key': 'low_stock_threshold',     'value': '5'});
+    await db.insert('settings', {'key': 'default_leave_days',      'value': '5'});
+    await db.insert('settings', {'key': 'manufacturing_lead_days', 'value': '7'});
   }
 
   // ── Generic helpers ────────────────────────────────────────────────────────

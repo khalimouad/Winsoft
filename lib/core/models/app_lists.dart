@@ -14,6 +14,16 @@ class AppLists {
   /// Accounting journals: ordered list of {code, label} pairs.
   final List<JournalDef> journals;
 
+  // ── Status lists ────────────────────────────────────────────────────────────
+  final List<String> invoiceStatuses;
+  final List<String> orderStatuses;
+  final List<String> purchaseOrderStatuses;
+  final List<String> supplierInvoiceStatuses;
+  final List<String> creditNoteStatuses;
+  final List<String> payrollStatuses;
+  final List<String> productionStatuses;
+  final List<String> leaveStatuses;
+
   const AppLists({
     required this.cities,
     required this.tvaRates,
@@ -25,19 +35,35 @@ class AppLists {
     required this.companyStatuses,
     required this.employeeDepartments,
     required this.journals,
+    required this.invoiceStatuses,
+    required this.orderStatuses,
+    required this.purchaseOrderStatuses,
+    required this.supplierInvoiceStatuses,
+    required this.creditNoteStatuses,
+    required this.payrollStatuses,
+    required this.productionStatuses,
+    required this.leaveStatuses,
   });
 
   // ── Settings-table keys ────────────────────────────────────────────────────
-  static const kCities              = 'list_cities';
-  static const kTvaRates            = 'list_tva_rates';
-  static const kFormesJuridiques    = 'list_formes_juridiques';
-  static const kPaymentMethods      = 'list_payment_methods';
-  static const kLeaveTypes          = 'list_leave_types';
-  static const kProductCategories   = 'list_product_categories';
-  static const kProductUnits        = 'list_product_units';
-  static const kCompanyStatuses     = 'list_company_statuses';
-  static const kEmployeeDepartments = 'list_employee_departments';
-  static const kJournals            = 'list_journals';
+  static const kCities                    = 'list_cities';
+  static const kTvaRates                  = 'list_tva_rates';
+  static const kFormesJuridiques          = 'list_formes_juridiques';
+  static const kPaymentMethods            = 'list_payment_methods';
+  static const kLeaveTypes               = 'list_leave_types';
+  static const kProductCategories        = 'list_product_categories';
+  static const kProductUnits             = 'list_product_units';
+  static const kCompanyStatuses          = 'list_company_statuses';
+  static const kEmployeeDepartments      = 'list_employee_departments';
+  static const kJournals                 = 'list_journals';
+  static const kInvoiceStatuses          = 'list_invoice_statuses';
+  static const kOrderStatuses            = 'list_order_statuses';
+  static const kPurchaseOrderStatuses    = 'list_po_statuses';
+  static const kSupplierInvoiceStatuses  = 'list_supplier_invoice_statuses';
+  static const kCreditNoteStatuses       = 'list_cn_statuses';
+  static const kPayrollStatuses          = 'list_payroll_statuses';
+  static const kProductionStatuses       = 'list_production_statuses';
+  static const kLeaveStatuses            = 'list_leave_statuses';
 
   // ── Built-in defaults ──────────────────────────────────────────────────────
   static const defaultCities = [
@@ -78,6 +104,14 @@ class AppLists {
     JournalDef(code: 'TRE', label: 'Trésorerie'),
     JournalDef(code: 'SAL', label: 'Salaires'),
   ];
+  static const defaultInvoiceStatuses         = ['Brouillon', 'Envoyée', 'Payée', 'En retard'];
+  static const defaultOrderStatuses           = ['En attente', 'En cours', 'Terminée', 'Annulée'];
+  static const defaultPurchaseOrderStatuses   = ['Brouillon', 'Envoyé', 'Reçu', 'Partiel', 'Annulé'];
+  static const defaultSupplierInvoiceStatuses = ['Reçue', 'Validée', 'Payée', 'Contestée', 'Annulée'];
+  static const defaultCreditNoteStatuses      = ['Brouillon', 'Émis', 'Appliqué'];
+  static const defaultPayrollStatuses         = ['Brouillon', 'Validé', 'Payé'];
+  static const defaultProductionStatuses      = ['Brouillon', 'Planifié', 'En cours', 'Terminé', 'Annulé'];
+  static const defaultLeaveStatuses           = ['En attente', 'Approuvé', 'Refusé', 'Annulé'];
 
   // ── Deserialize from settings map ──────────────────────────────────────────
   static AppLists fromSettings(Map<String, String> s) {
@@ -108,16 +142,24 @@ class AppLists {
       } catch (_) { return List.from(defaultJournals); }
     }
     return AppLists(
-      cities:              str(kCities,              defaultCities),
-      tvaRates:            dbl(kTvaRates,            defaultTvaRates),
-      formesJuridiques:    str(kFormesJuridiques,    defaultFormesJuridiques),
-      paymentMethods:      str(kPaymentMethods,      defaultPaymentMethods),
-      leaveTypes:          str(kLeaveTypes,          defaultLeaveTypes),
-      productCategories:   str(kProductCategories,   defaultProductCategories),
-      productUnits:        str(kProductUnits,        defaultProductUnits),
-      companyStatuses:     str(kCompanyStatuses,     defaultCompanyStatuses),
-      employeeDepartments: str(kEmployeeDepartments, defaultEmployeeDepartments),
-      journals:            journals(kJournals),
+      cities:                    str(kCities,                    defaultCities),
+      tvaRates:                  dbl(kTvaRates,                  defaultTvaRates),
+      formesJuridiques:          str(kFormesJuridiques,          defaultFormesJuridiques),
+      paymentMethods:            str(kPaymentMethods,            defaultPaymentMethods),
+      leaveTypes:                str(kLeaveTypes,                defaultLeaveTypes),
+      productCategories:         str(kProductCategories,         defaultProductCategories),
+      productUnits:              str(kProductUnits,              defaultProductUnits),
+      companyStatuses:           str(kCompanyStatuses,           defaultCompanyStatuses),
+      employeeDepartments:       str(kEmployeeDepartments,       defaultEmployeeDepartments),
+      journals:                  journals(kJournals),
+      invoiceStatuses:           str(kInvoiceStatuses,           defaultInvoiceStatuses),
+      orderStatuses:             str(kOrderStatuses,             defaultOrderStatuses),
+      purchaseOrderStatuses:     str(kPurchaseOrderStatuses,     defaultPurchaseOrderStatuses),
+      supplierInvoiceStatuses:   str(kSupplierInvoiceStatuses,   defaultSupplierInvoiceStatuses),
+      creditNoteStatuses:        str(kCreditNoteStatuses,        defaultCreditNoteStatuses),
+      payrollStatuses:           str(kPayrollStatuses,           defaultPayrollStatuses),
+      productionStatuses:        str(kProductionStatuses,        defaultProductionStatuses),
+      leaveStatuses:             str(kLeaveStatuses,             defaultLeaveStatuses),
     );
   }
 

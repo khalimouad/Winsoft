@@ -120,15 +120,6 @@ class JournalEntry {
   bool get isBalanced =>
       (totalDebit - totalCredit).abs() < 0.01;
 
-  static const List<String> journals = ['OD', 'VTE', 'ACH', 'TRE', 'SAL'];
-  static const Map<String, String> journalLabels = {
-    'OD': 'Opérations diverses',
-    'VTE': 'Ventes',
-    'ACH': 'Achats',
-    'TRE': 'Trésorerie',
-    'SAL': 'Salaires',
-  };
-
   factory JournalEntry.fromMap(Map<String, dynamic> m,
           {List<JournalEntryLine> lines = const []}) =>
       JournalEntry(

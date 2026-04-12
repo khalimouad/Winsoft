@@ -221,8 +221,6 @@ class PosSale {
   final String? clientName;
   final List<PosSaleItem> items;
 
-  static const List<String> paymentMethods = ['Espèces', 'Carte', 'Chèque', 'Virement'];
-
   factory PosSale.fromMap(Map<String, dynamic> m,
           {List<PosSaleItem> items = const []}) =>
       PosSale(

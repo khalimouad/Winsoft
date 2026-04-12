@@ -31,11 +31,6 @@ class RecurringTemplate {
   final List<RecurringItem> items;
 
   static const List<String> frequencies = ['monthly', 'quarterly', 'yearly'];
-  static const Map<String, String> frequencyLabels = {
-    'monthly': 'Mensuel',
-    'quarterly': 'Trimestriel',
-    'yearly': 'Annuel',
-  };
 
   /// Compute next due date after [from].
   int nextAfter(int fromMs) {

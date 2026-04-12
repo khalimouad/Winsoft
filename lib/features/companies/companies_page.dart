@@ -202,7 +202,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
   }
 
   void _showDialog(BuildContext context, {Company? company, AppLists? lists}) {
-    lists ??= AppLists.defaults;
+    final AppLists lst = lists ?? AppLists.defaults;
     final nameCtrl         = TextEditingController(text: company?.name ?? '');
     final industryCtrl     = TextEditingController(text: company?.industry ?? '');
     final emailCtrl        = TextEditingController(text: company?.email ?? '');
@@ -222,13 +222,13 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
     final capitalCtrl      = TextEditingController(
         text: company?.capitalSocial?.toString() ?? '');
     String selectedCity    = company?.city ??
-        (lists!.cities.isNotEmpty ? lists.cities.first : MoroccoFormat.cities.first);
+        (lst.cities.isNotEmpty ? lst.cities.first : AppLists.defaultCities.first);
     String? selectedForme  = company?.formeJuridique;
     String selectedStatus  = company?.status ??
-        (lists.companyStatuses.isNotEmpty ? lists.companyStatuses.first : 'Active');
+        (lst.companyStatuses.isNotEmpty ? lst.companyStatuses.first : 'Active');
 
-    final formes  = ['—', ...lists.formesJuridiques];
-    final statuts = lists.companyStatuses;
+    final formes  = ['—', ...lst.formesJuridiques];
+    final statuts = lst.companyStatuses;
 
     showDialog(
       context: context,
@@ -265,7 +265,7 @@ class _CompaniesPageState extends ConsumerState<CompaniesPage> {
                       child: DropdownButtonFormField<String>(
                         value: selectedCity,
                         decoration: const InputDecoration(labelText: 'Ville'),
-                        items: lists!.cities
+                        items: lst.cities
                             .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                             .toList(),
                         onChanged: (v) => setS(() => selectedCity = v!),
