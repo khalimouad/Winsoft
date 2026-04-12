@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/models/app_lists.dart';
 import '../../core/models/journal_entry.dart';
 import '../../core/providers/providers.dart';
 import '../../core/utils/morocco_format.dart';
@@ -178,8 +179,10 @@ class _JournalTab extends ConsumerWidget {
 
   void _showAddDialog(BuildContext context, WidgetRef ref,
       List<AccountChart> accounts) {
+    final journals = ref.read(appListsProvider).valueOrNull?.journals
+        ?? AppLists.defaultJournals;
     final descCtrl = TextEditingController();
-    String selectedJournal = 'OD';
+    String selectedJournal = journals.isNotEmpty ? journals.first.code : 'OD';
     int? debitAccountId = accounts.isNotEmpty ? accounts.first.id : null;
     int? creditAccountId = accounts.isNotEmpty ? accounts.first.id : null;
     final amountCtrl = TextEditingController();
@@ -198,11 +201,10 @@ class _JournalTab extends ConsumerWidget {
                 DropdownButtonFormField<String>(
                   value: selectedJournal,
                   decoration: const InputDecoration(labelText: 'Journal'),
-                  items: JournalEntry.journals
+                  items: journals
                       .map((j) => DropdownMenuItem(
-                          value: j,
-                          child: Text(
-                              '$j — ${JournalEntry.journalLabels[j]}')))
+                          value: j.code,
+                          child: Text(j.display)))
                       .toList(),
                   onChanged: (v) =>
                       setState(() => selectedJournal = v!),

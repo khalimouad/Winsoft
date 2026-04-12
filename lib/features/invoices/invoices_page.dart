@@ -336,7 +336,7 @@ class _InvoicesTabState extends ConsumerState<_InvoicesTab> {
                   final now   = DateTime.now();
                   final due   = now.add(const Duration(days: 30));
                   final invoice = Invoice(
-                    reference: 'FAC-${now.year}-${seq.toString().padLeft(3, '0')}',
+                    reference: '${ref.read(settingsProvider).valueOrNull?['invoice_prefix'] ?? 'FAC'}-${now.year}-${seq.toString().padLeft(3, '0')}',
                     clientId: selectedClientId!,
                     issuedDate: now,
                     dueDate: due,
@@ -562,7 +562,7 @@ class _CreditNotesTab extends ConsumerWidget {
                 final now  = DateTime.now().millisecondsSinceEpoch;
                 final cn = CreditNote(
                   reference:
-                      'AV-${DateTime.now().year}-${seq.toString().padLeft(3, '0')}',
+                      '${ref.read(settingsProvider).valueOrNull?['cn_prefix'] ?? 'AV'}-${DateTime.now().year}-${seq.toString().padLeft(3, '0')}',
                   clientId:   selectedInvoice.clientId,
                   invoiceId:  selectedInvoice.id!,
                   issueDate:  now,
@@ -735,7 +735,7 @@ class _RecurringTab extends ConsumerWidget {
       )).toList();
 
       final invoice = Invoice(
-        reference: 'FAC-${now.year}-${seq.toString().padLeft(3, '0')}',
+        reference: '${ref.read(settingsProvider).valueOrNull?['invoice_prefix'] ?? 'FAC'}-${now.year}-${seq.toString().padLeft(3, '0')}',
         clientId:  t.clientId,
         issuedDate: now,
         dueDate:    due,

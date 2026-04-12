@@ -23,6 +23,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _rcCtrl      = TextEditingController();
   final _ifCtrl      = TextEditingController();
   final _prefixCtrl  = TextEditingController();
+  final _poPrefix    = TextEditingController();
+  final _cnPrefix    = TextEditingController();
   final _termsCtrl   = TextEditingController();
   final _notesCtrl   = TextEditingController();
   String _selectedCity = MoroccoFormat.cities.first;
@@ -39,6 +41,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _rcCtrl.dispose();
     _ifCtrl.dispose();
     _prefixCtrl.dispose();
+    _poPrefix.dispose();
+    _cnPrefix.dispose();
     _termsCtrl.dispose();
     _notesCtrl.dispose();
     super.dispose();
@@ -65,6 +69,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           _rcCtrl.text      = settings['company_rc'] ?? '';
           _ifCtrl.text      = settings['company_if'] ?? '';
           _prefixCtrl.text  = settings['invoice_prefix'] ?? 'FAC';
+          _poPrefix.text    = settings['po_prefix'] ?? 'BA';
+          _cnPrefix.text    = settings['cn_prefix'] ?? 'AV';
           _termsCtrl.text   = settings['invoice_terms'] ?? '30 jours net';
           _notesCtrl.text   = settings['invoice_notes'] ?? '';
           final city = settings['company_city'] ?? MoroccoFormat.cities.first;
@@ -134,7 +140,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   title: 'Paramètres de facturation',
                   icon: Icons.receipt_long_outlined,
                   children: [
-                    _field(_prefixCtrl, 'Préfixe facture (ex: FAC)'),
+                    Row(children: [
+                      Expanded(child: _field(_prefixCtrl, 'Préfixe facture (ex: FAC)')),
+                      const SizedBox(width: 12),
+                      Expanded(child: _field(_poPrefix, 'Préfixe bon de commande (ex: BA)')),
+                      const SizedBox(width: 12),
+                      Expanded(child: _field(_cnPrefix, 'Préfixe avoir (ex: AV)')),
+                    ]),
                     _field(_termsCtrl, 'Conditions de paiement'),
                     StatefulBuilder(
                       builder: (ctx, ss) => DropdownButtonFormField<double>(
@@ -236,6 +248,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       settingsKey: AppLists.kEmployeeDepartments,
                       items: lists.employeeDepartments,
                     ),
+                    const SizedBox(height: 16),
+                    _JournalEditor(journals: lists.journals),
                   ],
                 ),
                 const SizedBox(height: 20),
@@ -346,7 +360,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Future<void> _saveInvoiceSettings() async {
     final db = DatabaseHelper.instance;
-    await db.setSetting('invoice_prefix', _prefixCtrl.text.trim());
+    await db.setSetting('invoice_prefix', _prefixCtrl.text.trim().isEmpty ? 'FAC' : _prefixCtrl.text.trim());
+    await db.setSetting('po_prefix', _poPrefix.text.trim().isEmpty ? 'BA' : _poPrefix.text.trim());
+    await db.setSetting('cn_prefix', _cnPrefix.text.trim().isEmpty ? 'AV' : _cnPrefix.text.trim());
     await db.setSetting('invoice_terms', _termsCtrl.text.trim());
     await db.setSetting('invoice_notes', _notesCtrl.text.trim());
     await db.setSetting('tva_default', _tvaDefault.toString());
@@ -513,6 +529,209 @@ class _ListEditorState extends ConsumerState<_ListEditor> {
           const SizedBox(width: 8),
           SizedBox(
             height: 40,
+            child: OutlinedButton.icon(
+              onPressed: _add,
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Ajouter'),
+              style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 14)),
+            ),
+          ),
+        ]),
+        const Divider(height: 24),
+      ],
+    );
+  }
+}
+
+// ── Journal Editor ────────────────────────────────────────────────────────────
+
+class _JournalEditor extends ConsumerStatefulWidget {
+  const _JournalEditor({required this.journals});
+  final List<JournalDef> journals;
+
+  @override
+  ConsumerState<_JournalEditor> createState() => _JournalEditorState();
+}
+
+class _JournalEditorState extends ConsumerState<_JournalEditor> {
+  late List<JournalDef> _journals;
+  final _codeCtrl  = TextEditingController();
+  final _labelCtrl = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _journals = List.from(widget.journals);
+  }
+
+  @override
+  void didUpdateWidget(_JournalEditor old) {
+    super.didUpdateWidget(old);
+    if (old.journals != widget.journals) _journals = List.from(widget.journals);
+  }
+
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    _labelCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    await DatabaseHelper.instance.setSetting(
+        AppLists.kJournals, AppLists.encodeJournals(_journals));
+    ref.invalidate(appListsProvider);
+    ref.invalidate(settingsProvider);
+    if (mounted) setState(() => _saving = false);
+  }
+
+  void _add() {
+    final code  = _codeCtrl.text.trim().toUpperCase();
+    final label = _labelCtrl.text.trim();
+    if (code.isEmpty || label.isEmpty) return;
+    if (_journals.any((j) => j.code == code)) return;
+    setState(() => _journals.add(JournalDef(code: code, label: label)));
+    _codeCtrl.clear();
+    _labelCtrl.clear();
+    _save();
+  }
+
+  void _editLabel(int index, String newLabel) {
+    if (newLabel.trim().isEmpty) return;
+    setState(() {
+      _journals[index] = JournalDef(
+          code: _journals[index].code, label: newLabel.trim());
+    });
+    _save();
+  }
+
+  void _remove(int index) {
+    setState(() => _journals.removeAt(index));
+    _save();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          Icon(Icons.account_balance_outlined, size: 16,
+              color: theme.colorScheme.primary),
+          const SizedBox(width: 6),
+          Text('Journaux comptables',
+              style: theme.textTheme.labelLarge
+                  ?.copyWith(fontWeight: FontWeight.w600)),
+          if (_saving) ...[
+            const SizedBox(width: 8),
+            const SizedBox(width: 12, height: 12,
+                child: CircularProgressIndicator(strokeWidth: 1.5)),
+          ],
+        ]),
+        const SizedBox(height: 10),
+
+        // List of journals
+        ..._journals.asMap().entries.map((e) {
+          final i = e.key;
+          final j = e.value;
+          final labelCtrl = TextEditingController(text: j.label);
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(children: [
+              Container(
+                width: 52,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                alignment: Alignment.center,
+                child: Text(j.code,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12,
+                        color: theme.colorScheme.onPrimaryContainer)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 36,
+                  child: TextField(
+                    controller: labelCtrl,
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Libellé du journal',
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(6)),
+                    ),
+                    onSubmitted: (v) => _editLabel(i, v),
+                    onEditingComplete: () => _editLabel(i, labelCtrl.text),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                icon: Icon(Icons.delete_outline, size: 16,
+                    color: theme.colorScheme.error),
+                onPressed: () => _remove(i),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ]),
+          );
+        }),
+
+        const SizedBox(height: 8),
+        // Add new journal row
+        Row(children: [
+          SizedBox(
+            width: 80,
+            height: 36,
+            child: TextField(
+              controller: _codeCtrl,
+              textCapitalization: TextCapitalization.characters,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              decoration: InputDecoration(
+                hintText: 'Code',
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 8, vertical: 8),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6)),
+              ),
+              onSubmitted: (_) => FocusScope.of(context).nextFocus(),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SizedBox(
+              height: 36,
+              child: TextField(
+                controller: _labelCtrl,
+                style: const TextStyle(fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'Libellé (ex: Emprunts)',
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 8),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6)),
+                ),
+                onSubmitted: (_) => _add(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 36,
             child: OutlinedButton.icon(
               onPressed: _add,
               icon: const Icon(Icons.add, size: 16),

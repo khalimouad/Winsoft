@@ -570,7 +570,7 @@ class _PurchaseOrdersTab extends ConsumerWidget {
                 final seq = await repo.nextSequence();
                 final order = PurchaseOrder(
                   reference:
-                      'BA-${DateTime.now().year}-${seq.toString().padLeft(3, '0')}',
+                      '${ref.read(settingsProvider).valueOrNull?['po_prefix'] ?? 'BA'}-${DateTime.now().year}-${seq.toString().padLeft(3, '0')}',
                   supplierId: selectedSupplierId!,
                   date: DateTime.now().millisecondsSinceEpoch,
                   totalHt: ht,

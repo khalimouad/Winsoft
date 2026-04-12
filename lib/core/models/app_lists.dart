@@ -11,6 +11,8 @@ class AppLists {
   final List<String> productUnits;
   final List<String> companyStatuses;
   final List<String> employeeDepartments;
+  /// Accounting journals: ordered list of {code, label} pairs.
+  final List<JournalDef> journals;
 
   const AppLists({
     required this.cities,
@@ -22,18 +24,20 @@ class AppLists {
     required this.productUnits,
     required this.companyStatuses,
     required this.employeeDepartments,
+    required this.journals,
   });
 
   // ── Settings-table keys ────────────────────────────────────────────────────
-  static const kCities             = 'list_cities';
-  static const kTvaRates           = 'list_tva_rates';
-  static const kFormesJuridiques   = 'list_formes_juridiques';
-  static const kPaymentMethods     = 'list_payment_methods';
-  static const kLeaveTypes         = 'list_leave_types';
-  static const kProductCategories  = 'list_product_categories';
-  static const kProductUnits       = 'list_product_units';
-  static const kCompanyStatuses    = 'list_company_statuses';
+  static const kCities              = 'list_cities';
+  static const kTvaRates            = 'list_tva_rates';
+  static const kFormesJuridiques    = 'list_formes_juridiques';
+  static const kPaymentMethods      = 'list_payment_methods';
+  static const kLeaveTypes          = 'list_leave_types';
+  static const kProductCategories   = 'list_product_categories';
+  static const kProductUnits        = 'list_product_units';
+  static const kCompanyStatuses     = 'list_company_statuses';
   static const kEmployeeDepartments = 'list_employee_departments';
+  static const kJournals            = 'list_journals';
 
   // ── Built-in defaults ──────────────────────────────────────────────────────
   static const defaultCities = [
@@ -67,6 +71,13 @@ class AppLists {
     'Direction', 'Comptabilité', 'Commercial', 'Technique', 'RH',
     'Logistique', 'Informatique', 'Production', 'Autre',
   ];
+  static const defaultJournals = [
+    JournalDef(code: 'OD',  label: 'Opérations diverses'),
+    JournalDef(code: 'VTE', label: 'Ventes'),
+    JournalDef(code: 'ACH', label: 'Achats'),
+    JournalDef(code: 'TRE', label: 'Trésorerie'),
+    JournalDef(code: 'SAL', label: 'Salaires'),
+  ];
 
   // ── Deserialize from settings map ──────────────────────────────────────────
   static AppLists fromSettings(Map<String, String> s) {
@@ -85,6 +96,17 @@ class AppLists {
             .toList();
       } catch (_) { return List<double>.from(def); }
     }
+    List<JournalDef> journals(String key) {
+      final v = s[key];
+      if (v == null || v.isEmpty) return List.from(defaultJournals);
+      try {
+        return (jsonDecode(v) as List)
+            .map((e) => JournalDef(
+                code: e['code'] as String,
+                label: e['label'] as String))
+            .toList();
+      } catch (_) { return List.from(defaultJournals); }
+    }
     return AppLists(
       cities:              str(kCities,              defaultCities),
       tvaRates:            dbl(kTvaRates,            defaultTvaRates),
@@ -95,11 +117,24 @@ class AppLists {
       productUnits:        str(kProductUnits,        defaultProductUnits),
       companyStatuses:     str(kCompanyStatuses,     defaultCompanyStatuses),
       employeeDepartments: str(kEmployeeDepartments, defaultEmployeeDepartments),
+      journals:            journals(kJournals),
     );
   }
 
   static AppLists get defaults => fromSettings(const {});
 
-  /// Serialize a list to JSON for DB storage.
+  /// Serialize a simple list to JSON for DB storage.
   static String encode(List items) => jsonEncode(items);
+
+  /// Serialize journal list to JSON for DB storage.
+  static String encodeJournals(List<JournalDef> jnl) =>
+      jsonEncode(jnl.map((j) => {'code': j.code, 'label': j.label}).toList());
+}
+
+/// A single accounting journal definition (code + human-readable label).
+class JournalDef {
+  final String code;
+  final String label;
+  const JournalDef({required this.code, required this.label});
+  String get display => '$code — $label';
 }

@@ -235,7 +235,7 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
   }
 
   void _showDialog(BuildContext context, {Product? product, AppLists? lists}) {
-    lists ??= AppLists.defaults;
+    final AppLists lst = lists ?? AppLists.defaults;
     final nameCtrl =
         TextEditingController(text: product?.name ?? '');
     final refCtrl =
@@ -244,14 +244,14 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
         text: product != null ? product.priceHt.toStringAsFixed(2) : '');
     final stockCtrl = TextEditingController(
         text: product?.stock?.toString() ?? '');
-    String? selectedCategory = lists.productCategories.contains(product?.category)
+    String? selectedCategory = lst.productCategories.contains(product?.category)
         ? product!.category
         : null;
-    String? selectedUnit = lists.productUnits.contains(product?.unit)
+    String? selectedUnit = lst.productUnits.contains(product?.unit)
         ? product!.unit
         : null;
-    final double defaultTva = lists.tvaRates.contains(20.0) ? 20.0 : lists.tvaRates.last;
-    double selectedTva = lists.tvaRates.contains(product?.tvaRate ?? 20.0)
+    final double defaultTva = lst.tvaRates.contains(20.0) ? 20.0 : lst.tvaRates.last;
+    double selectedTva = lst.tvaRates.contains(product?.tvaRate ?? 20.0)
         ? (product?.tvaRate ?? defaultTva)
         : defaultTva;
     bool isService = product?.isService ?? true;
@@ -283,7 +283,7 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                     decoration: const InputDecoration(labelText: 'Catégorie'),
                     items: [
                       const DropdownMenuItem(value: null, child: Text('— Choisir —')),
-                      ...lists.productCategories.map((c) =>
+                      ...lst.productCategories.map((c) =>
                           DropdownMenuItem(value: c, child: Text(c))),
                     ],
                     onChanged: (v) => setState(() => selectedCategory = v),
@@ -298,7 +298,7 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                   DropdownButtonFormField<double>(
                     value: selectedTva,
                     decoration: const InputDecoration(labelText: 'Taux TVA'),
-                    items: lists.tvaRates
+                    items: lst.tvaRates
                         .map((r) => DropdownMenuItem(
                             value: r,
                             child: Text(MoroccoFormat.tvaLabel(r))))
@@ -327,7 +327,7 @@ class _ProductsPageState extends ConsumerState<ProductsPage> {
                     decoration: const InputDecoration(labelText: 'Unité'),
                     items: [
                       const DropdownMenuItem(value: null, child: Text('— Choisir —')),
-                      ...lists.productUnits.map((u) =>
+                      ...lst.productUnits.map((u) =>
                           DropdownMenuItem(value: u, child: Text(u))),
                     ],
                     onChanged: (v) => setState(() => selectedUnit = v),
