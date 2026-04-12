@@ -5,6 +5,7 @@ import '../../core/models/supplier.dart';
 import '../../core/models/purchase_order.dart';
 import '../../core/models/supplier_invoice.dart';
 import '../../core/providers/providers.dart';
+import '../../core/services/pdf_service.dart';
 import '../../core/utils/morocco_format.dart';
 
 class PurchasesPage extends ConsumerStatefulWidget {
@@ -440,9 +441,19 @@ class _PurchaseOrdersTab extends ConsumerWidget {
                                 fontSize: 12,
                                 color: theme
                                     .colorScheme.onSurfaceVariant)),
-                        trailing: Text(MoroccoFormat.mad(order.totalTtc),
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold)),
+                        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                          Text(MoroccoFormat.mad(order.totalTtc),
+                              style: const TextStyle(fontWeight: FontWeight.bold)),
+                          IconButton(
+                            icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+                            tooltip: 'Imprimer PDF',
+                            onPressed: () async {
+                              final settings = ref.read(settingsProvider).valueOrNull ?? {};
+                              final bytes = await PdfService.generatePurchaseOrder(order, settings);
+                              await PdfService.printDoc(bytes);
+                            },
+                          ),
+                        ]),
                         onTap: () =>
                             _showStatusMenu(context, ref, order),
                       ),

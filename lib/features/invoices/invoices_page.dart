@@ -447,6 +447,15 @@ class _CreditNotesTab extends ConsumerWidget {
                         Text(MoroccoFormat.mad(cn.totalTtc),
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold)),
+                        IconButton(
+                          icon: const Icon(Icons.picture_as_pdf_outlined, size: 20),
+                          tooltip: 'Imprimer PDF',
+                          onPressed: () async {
+                            final settings = ref.read(settingsProvider).valueOrNull ?? {};
+                            final bytes = await PdfService.generateCreditNote(cn, settings);
+                            await PdfService.printDoc(bytes);
+                          },
+                        ),
                         PopupMenuButton<String>(
                           icon: const Icon(Icons.more_vert, size: 18),
                           itemBuilder: (_) => [
