@@ -18,6 +18,7 @@ import '../models/fiscal_year.dart';
 import '../models/bank_account.dart';
 import '../models/employee_contract.dart';
 import '../models/employee_loan.dart';
+import '../models/expense.dart';
 import '../models/supplier.dart';
 import '../models/purchase_order.dart';
 import '../models/supplier_invoice.dart';
@@ -46,6 +47,7 @@ import '../repositories/fiscal_year_repository.dart';
 import '../repositories/bank_account_repository.dart';
 import '../repositories/employee_contract_repository.dart';
 import '../repositories/employee_loan_repository.dart';
+import '../repositories/expense_repository.dart';
 import '../repositories/supplier_repository.dart';
 import '../repositories/purchase_order_repository.dart';
 import '../repositories/supplier_invoice_repository.dart';
@@ -1108,3 +1110,32 @@ class EmployeeLoanNotifier extends AsyncNotifier<List<EmployeeLoan>> {
 final employeeLoanProvider =
     AsyncNotifierProvider<EmployeeLoanNotifier, List<EmployeeLoan>>(
         EmployeeLoanNotifier.new);
+
+// ── Expenses ──────────────────────────────────────────────────────────────────
+
+final expenseRepoProvider = Provider((_) => ExpenseRepository());
+
+class ExpenseNotifier extends AsyncNotifier<List<Expense>> {
+  @override
+  Future<List<Expense>> build() =>
+      ref.read(expenseRepoProvider).getAll();
+
+  Future<void> add(Expense expense) async {
+    await ref.read(expenseRepoProvider).insert(expense);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(expenseRepoProvider).updateStatus(id, status);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(expenseRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final expenseProvider =
+    AsyncNotifierProvider<ExpenseNotifier, List<Expense>>(
+        ExpenseNotifier.new);

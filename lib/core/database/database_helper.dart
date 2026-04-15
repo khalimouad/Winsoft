@@ -18,7 +18,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 11,
+      version: 12,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
@@ -163,6 +163,7 @@ class DatabaseHelper {
     await _createV9Tables(db);
     await _createV10Tables(db);
     await _createV11Tables(db);
+    await _createV12Tables(db);
     await _seedData(db);
   }
 
@@ -196,6 +197,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 11) {
       await _createV11Tables(db);
+    }
+    if (oldVersion < 12) {
+      await _createV12Tables(db);
     }
   }
 
@@ -680,6 +684,23 @@ class DatabaseHelper {
         'sort_order': 0,
       });
     } catch (_) {}
+  }
+
+  Future<void> _createV12Tables(Database db) async {
+    // ── Expenses (Notes de frais) ─────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS expenses (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+        category    TEXT    NOT NULL,
+        description TEXT    NOT NULL,
+        amount      REAL    NOT NULL,
+        date        INTEGER NOT NULL,
+        status      TEXT    NOT NULL DEFAULT 'Brouillon',
+        receipt_ref TEXT,
+        notes       TEXT
+      )
+    ''');
   }
 
   Future<void> _createV11Tables(Database db) async {
