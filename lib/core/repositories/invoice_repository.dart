@@ -8,7 +8,12 @@ class InvoiceRepository {
     final rows = await _db.rawQuery('''
       SELECT inv.*,
              c.name  AS client_name,
-             co.name AS company_name
+             co.name AS company_name,
+             COALESCE((
+               SELECT SUM(pr.amount)
+               FROM payments_received pr
+               WHERE pr.invoice_id = inv.id
+             ), 0) AS amount_paid
       FROM invoices inv
       JOIN clients c  ON c.id  = inv.client_id
       LEFT JOIN companies co ON co.id = c.company_id
@@ -21,7 +26,12 @@ class InvoiceRepository {
     final rows = await _db.rawQuery('''
       SELECT inv.*,
              c.name  AS client_name,
-             co.name AS company_name
+             co.name AS company_name,
+             COALESCE((
+               SELECT SUM(pr.amount)
+               FROM payments_received pr
+               WHERE pr.invoice_id = inv.id
+             ), 0) AS amount_paid
       FROM invoices inv
       JOIN clients c  ON c.id  = inv.client_id
       LEFT JOIN companies co ON co.id = c.company_id

@@ -4,6 +4,7 @@ import '../../core/models/app_lists.dart';
 import '../../core/models/supplier.dart';
 import '../../core/models/purchase_order.dart';
 import '../../core/models/supplier_invoice.dart';
+import '../../core/models/payment.dart';
 import '../../core/providers/providers.dart';
 import '../../core/services/pdf_service.dart';
 import '../../core/utils/morocco_format.dart';
@@ -22,7 +23,7 @@ class _PurchasesPageState extends ConsumerState<PurchasesPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -52,6 +53,7 @@ class _PurchasesPageState extends ConsumerState<PurchasesPage>
               Tab(text: 'Fournisseurs'),
               Tab(text: 'Bons de commande'),
               Tab(text: 'Factures fournisseurs'),
+              Tab(text: 'Paiements fournisseurs'),
             ],
           ),
           Expanded(
@@ -61,6 +63,7 @@ class _PurchasesPageState extends ConsumerState<PurchasesPage>
                 _SuppliersTab(),
                 _PurchaseOrdersTab(),
                 _SupplierInvoicesTab(),
+                _SupplierPaymentsTab(),
               ],
             ),
           ),
@@ -696,6 +699,17 @@ class _SupplierInvoicesTab extends ConsumerWidget {
                         Text(MoroccoFormat.mad(inv.totalTtc),
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold)),
+                        if (inv.status != 'Payée' && inv.status != 'Annulée')
+                          Tooltip(
+                            message: 'Enregistrer un paiement',
+                            child: IconButton(
+                              icon: const Icon(Icons.payments_outlined,
+                                  size: 18),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => _showSupplierPaymentDialog(
+                                  context, ref, inv),
+                            ),
+                          ),
                         PopupMenuButton<String>(
                           icon: const Icon(Icons.more_vert, size: 18),
                           itemBuilder: (_) =>
@@ -845,6 +859,199 @@ class _SupplierInvoicesTab extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showSupplierPaymentDialog(
+      BuildContext context, WidgetRef ref, SupplierInvoice inv) {
+    final amountCtrl = TextEditingController(
+        text: inv.totalTtc.toStringAsFixed(2));
+    String method = 'Virement';
+    DateTime paymentDate = DateTime.now();
+    final bankRefCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final methods = ['Virement', 'Chèque', 'Espèces', 'Carte'];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text('Paiement — ${inv.reference}'),
+          content: SizedBox(
+            width: 380,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  TextFormField(
+                    controller: amountCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Montant *', suffixText: 'MAD'),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    validator: (v) =>
+                        (double.tryParse(v ?? '') ?? 0) <= 0
+                            ? 'Montant invalide'
+                            : null,
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: method,
+                    decoration:
+                        const InputDecoration(labelText: 'Mode de paiement'),
+                    items: methods
+                        .map((m) =>
+                            DropdownMenuItem(value: m, child: Text(m)))
+                        .toList(),
+                    onChanged: (v) => setState(() => method = v!),
+                  ),
+                  const SizedBox(height: 10),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Date du paiement',
+                        style: TextStyle(fontSize: 13)),
+                    subtitle: Text(MoroccoFormat.date(paymentDate)),
+                    trailing: const Icon(Icons.calendar_today, size: 18),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: ctx,
+                        initialDate: paymentDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked != null) {
+                        setState(() => paymentDate = picked);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: bankRefCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Réf. bancaire / N° chèque'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: notesCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'Notes'),
+                    maxLines: 2,
+                  ),
+                ]),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Annuler')),
+            FilledButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                final payment = PaymentSent(
+                  supplierInvoiceId: inv.id!,
+                  amount: double.parse(amountCtrl.text),
+                  method: method,
+                  paymentDate: paymentDate,
+                  bankRef: bankRefCtrl.text.trim().isEmpty
+                      ? null
+                      : bankRefCtrl.text.trim(),
+                  notes: notesCtrl.text.trim().isEmpty
+                      ? null
+                      : notesCtrl.text.trim(),
+                );
+                await ref
+                    .read(paymentsSentProvider.notifier)
+                    .record(payment, inv.totalTtc);
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              },
+              child: const Text('Enregistrer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Supplier Payments Tab ─────────────────────────────────────────────────────
+
+class _SupplierPaymentsTab extends ConsumerWidget {
+  const _SupplierPaymentsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final paymentsAsync = ref.watch(paymentsSentProvider);
+
+    return paymentsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Erreur: $e')),
+      data: (payments) {
+        final total =
+            payments.fold<double>(0, (sum, p) => sum + p.amount);
+        return Column(children: [
+          Container(
+            width: double.infinity,
+            color: theme.colorScheme.primaryContainer,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: Row(children: [
+              const Icon(Icons.payments_outlined, size: 20),
+              const SizedBox(width: 8),
+              Text('Total payé aux fournisseurs : ',
+                  style: theme.textTheme.bodyMedium),
+              Text(MoroccoFormat.mad(total),
+                  style: theme.textTheme.bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+            ]),
+          ),
+          Expanded(
+            child: payments.isEmpty
+                ? const Center(
+                    child: Text('Aucun paiement fournisseur enregistré'))
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: DataTable(
+                      columnSpacing: 20,
+                      columns: const [
+                        DataColumn(label: Text('Facture')),
+                        DataColumn(label: Text('Fournisseur')),
+                        DataColumn(label: Text('Date')),
+                        DataColumn(label: Text('Mode')),
+                        DataColumn(label: Text('Montant')),
+                        DataColumn(label: Text('Réf.')),
+                        DataColumn(label: Text('')),
+                      ],
+                      rows: payments.map((p) {
+                        return DataRow(cells: [
+                          DataCell(Text(p.supplierInvoiceRef ?? '—')),
+                          DataCell(Text(p.supplierName ?? '—')),
+                          DataCell(Text(MoroccoFormat.date(p.paymentDate))),
+                          DataCell(Text(p.method)),
+                          DataCell(Text(MoroccoFormat.mad(p.amount),
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold))),
+                          DataCell(Text(p.bankRef ?? '—')),
+                          DataCell(
+                            IconButton(
+                              icon: Icon(Icons.delete_outline,
+                                  size: 18,
+                                  color: theme.colorScheme.error),
+                              tooltip: 'Supprimer',
+                              onPressed: () => ref
+                                  .read(paymentsSentProvider.notifier)
+                                  .remove(p.id!),
+                            ),
+                          ),
+                        ]);
+                      }).toList(),
+                    ),
+                  ),
+          ),
+        ]);
+      },
     );
   }
 }

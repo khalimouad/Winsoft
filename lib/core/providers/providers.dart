@@ -8,6 +8,7 @@ import '../models/sale_order.dart';
 import '../models/invoice.dart';
 import '../models/delivery.dart';
 import '../models/return_note.dart';
+import '../models/payment.dart';
 import '../models/supplier.dart';
 import '../models/purchase_order.dart';
 import '../models/supplier_invoice.dart';
@@ -25,6 +26,8 @@ import '../repositories/sale_order_repository.dart';
 import '../repositories/invoice_repository.dart';
 import '../repositories/delivery_repository.dart';
 import '../repositories/return_note_repository.dart';
+import '../repositories/payments_received_repository.dart';
+import '../repositories/payments_sent_repository.dart';
 import '../repositories/supplier_repository.dart';
 import '../repositories/purchase_order_repository.dart';
 import '../repositories/supplier_invoice_repository.dart';
@@ -706,3 +709,75 @@ class ReturnNoteNotifier extends AsyncNotifier<List<ReturnNote>> {
 final returnNoteProvider =
     AsyncNotifierProvider<ReturnNoteNotifier, List<ReturnNote>>(
         ReturnNoteNotifier.new);
+
+// ── Payments Received ─────────────────────────────────────────────────────────
+
+final paymentsReceivedRepoProvider =
+    Provider((_) => PaymentsReceivedRepository());
+
+class PaymentsReceivedNotifier extends AsyncNotifier<List<PaymentReceived>> {
+  @override
+  Future<List<PaymentReceived>> build() =>
+      ref.read(paymentsReceivedRepoProvider).getAll();
+
+  /// Records a new payment and auto-marks invoice as Payée if fully settled.
+  Future<void> record(PaymentReceived payment, double invoiceTtc) async {
+    final repo = ref.read(paymentsReceivedRepoProvider);
+    await repo.insert(payment);
+    // Check if invoice is now fully paid
+    final total = await repo.totalByInvoiceId(payment.invoiceId);
+    if (total >= invoiceTtc - 0.01) {
+      await ref
+          .read(invoiceRepoProvider)
+          .updateStatus(payment.invoiceId, 'Payée');
+      ref.invalidate(invoiceProvider);
+    }
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(paymentsReceivedRepoProvider).delete(id);
+    ref.invalidate(invoiceProvider);
+    ref.invalidateSelf();
+  }
+}
+
+final paymentsReceivedProvider =
+    AsyncNotifierProvider<PaymentsReceivedNotifier, List<PaymentReceived>>(
+        PaymentsReceivedNotifier.new);
+
+// ── Payments Sent ─────────────────────────────────────────────────────────────
+
+final paymentsSentRepoProvider =
+    Provider((_) => PaymentsSentRepository());
+
+class PaymentsSentNotifier extends AsyncNotifier<List<PaymentSent>> {
+  @override
+  Future<List<PaymentSent>> build() =>
+      ref.read(paymentsSentRepoProvider).getAll();
+
+  /// Records a payment to a supplier and auto-marks invoice as Payée if settled.
+  Future<void> record(PaymentSent payment, double invoiceTtc) async {
+    final repo = ref.read(paymentsSentRepoProvider);
+    await repo.insert(payment);
+    final total =
+        await repo.totalBySupplierInvoiceId(payment.supplierInvoiceId);
+    if (total >= invoiceTtc - 0.01) {
+      await ref
+          .read(supplierInvoiceRepoProvider)
+          .updateStatus(payment.supplierInvoiceId, 'Payée');
+      ref.invalidate(supplierInvoiceProvider);
+    }
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(paymentsSentRepoProvider).delete(id);
+    ref.invalidate(supplierInvoiceProvider);
+    ref.invalidateSelf();
+  }
+}
+
+final paymentsSentProvider =
+    AsyncNotifierProvider<PaymentsSentNotifier, List<PaymentSent>>(
+        PaymentsSentNotifier.new);

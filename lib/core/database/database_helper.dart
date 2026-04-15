@@ -18,7 +18,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 6,
+      version: 7,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
@@ -158,6 +158,7 @@ class DatabaseHelper {
     await _createV4Tables(db);
     await _createV5Tables(db);
     await _createV6Tables(db);
+    await _createV7Tables(db);
     await _seedData(db);
   }
 
@@ -176,6 +177,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 6) {
       await _createV6Tables(db);
+    }
+    if (oldVersion < 7) {
+      await _createV7Tables(db);
     }
   }
 
@@ -561,6 +565,36 @@ class DatabaseHelper {
         await db.execute('ALTER TABLE companies ADD COLUMN $col');
       } catch (_) {}
     }
+  }
+
+  Future<void> _createV7Tables(Database db) async {
+    // ── Payments received (from clients) ────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS payments_received (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_id   INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+        amount       REAL    NOT NULL,
+        method       TEXT    NOT NULL DEFAULT 'Espèces',
+        payment_date INTEGER NOT NULL,
+        bank_ref     TEXT,
+        notes        TEXT,
+        created_at   INTEGER NOT NULL
+      )
+    ''');
+
+    // ── Payments sent (to suppliers) ─────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS payments_sent (
+        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+        supplier_invoice_id INTEGER NOT NULL REFERENCES supplier_invoices(id) ON DELETE CASCADE,
+        amount              REAL    NOT NULL,
+        method              TEXT    NOT NULL DEFAULT 'Virement',
+        payment_date        INTEGER NOT NULL,
+        bank_ref            TEXT,
+        notes               TEXT,
+        created_at          INTEGER NOT NULL
+      )
+    ''');
   }
 
   Future<void> _createV6Tables(Database db) async {

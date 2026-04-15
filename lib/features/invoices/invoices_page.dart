@@ -5,6 +5,7 @@ import '../../core/models/client.dart';
 import '../../core/models/credit_note.dart';
 import '../../core/models/recurring_template.dart';
 import '../../core/models/app_lists.dart';
+import '../../core/models/payment.dart';
 import '../../core/providers/providers.dart';
 import '../../core/services/pdf_service.dart';
 import '../../core/utils/morocco_format.dart';
@@ -22,7 +23,7 @@ class _InvoicesPageState extends ConsumerState<InvoicesPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -52,6 +53,7 @@ class _InvoicesPageState extends ConsumerState<InvoicesPage>
               Tab(text: 'Factures clients'),
               Tab(text: 'Avoirs'),
               Tab(text: 'Récurrentes'),
+              Tab(text: 'Paiements reçus'),
             ],
           ),
           Expanded(
@@ -61,6 +63,7 @@ class _InvoicesPageState extends ConsumerState<InvoicesPage>
                 _InvoicesTab(),
                 _CreditNotesTab(),
                 _RecurringTab(),
+                _PaymentsReceivedTab(),
               ],
             ),
           ),
@@ -172,9 +175,9 @@ class _InvoicesTabState extends ConsumerState<_InvoicesTab> {
                         DataColumn(label: Text('CLIENT')),
                         DataColumn(label: Text('ÉMISSION')),
                         DataColumn(label: Text('ÉCHÉANCE')),
-                        DataColumn(label: Text('MONTANT HT'), numeric: true),
-                        DataColumn(label: Text('TVA'),         numeric: true),
                         DataColumn(label: Text('TOTAL TTC'),   numeric: true),
+                        DataColumn(label: Text('PAYÉ'),        numeric: true),
+                        DataColumn(label: Text('RESTE DÛ'),    numeric: true),
                         DataColumn(label: Text('STATUT')),
                         DataColumn(label: Text('ACTIONS')),
                       ],
@@ -199,16 +202,44 @@ class _InvoicesTabState extends ConsumerState<_InvoicesTab> {
                           style: TextStyle(
                               color: inv.isOverdue ? Colors.red.shade700 : null),
                         )),
-                        DataCell(Text(MoroccoFormat.mad(inv.totalHt))),
-                        DataCell(Text(MoroccoFormat.mad(inv.totalTva))),
                         DataCell(Text(
                           MoroccoFormat.mad(inv.totalTtc),
                           style: const TextStyle(fontWeight: FontWeight.w600),
+                        )),
+                        DataCell(Text(
+                          MoroccoFormat.mad(inv.amountPaid),
+                          style: TextStyle(
+                            color: inv.amountPaid > 0
+                                ? Colors.green.shade700
+                                : null,
+                          ),
+                        )),
+                        DataCell(Text(
+                          MoroccoFormat.mad(inv.amountDue),
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: inv.amountDue > 0.01
+                                ? Colors.red.shade700
+                                : Colors.green.shade700,
+                          ),
                         )),
                         DataCell(_InvoiceStatusChip(status: inv.status)),
                         DataCell(Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            if (inv.status != 'Payée' &&
+                                inv.status != 'Brouillon' &&
+                                inv.status != 'Annulé')
+                              Tooltip(
+                                message: 'Enregistrer un paiement',
+                                child: IconButton(
+                                  icon: const Icon(Icons.payments_outlined,
+                                      size: 18),
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: () => _showPaymentDialog(
+                                      context, ref, inv),
+                                ),
+                              ),
                             IconButton(
                               icon: const Icon(
                                   Icons.picture_as_pdf_outlined, size: 18),
@@ -366,6 +397,272 @@ class _InvoicesTabState extends ConsumerState<_InvoicesTab> {
         ),
       );
     });
+  }
+  void _showPaymentDialog(
+      BuildContext context, WidgetRef ref, Invoice inv) {
+    final amountCtrl =
+        TextEditingController(text: inv.amountDue.toStringAsFixed(2));
+    final bankRefCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+    String selectedMethod = 'Virement';
+    DateTime selectedDate = DateTime.now();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Text('Paiement — ${inv.reference}'),
+          content: SizedBox(
+            width: 380,
+            child: Form(
+              key: formKey,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(
+                  'Reste dû: ${MoroccoFormat.mad(inv.amountDue)}',
+                  style: TextStyle(
+                      color: Colors.red.shade700, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: amountCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration:
+                      const InputDecoration(labelText: 'Montant payé (MAD) *'),
+                  validator: (v) {
+                    final n = double.tryParse(v ?? '');
+                    if (n == null || n <= 0) return 'Montant invalide';
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedMethod,
+                  decoration:
+                      const InputDecoration(labelText: 'Mode de paiement'),
+                  items: ['Espèces', 'Chèque', 'Virement', 'Carte']
+                      .map((m) =>
+                          DropdownMenuItem(value: m, child: Text(m)))
+                      .toList(),
+                  onChanged: (v) =>
+                      setState(() => selectedMethod = v ?? selectedMethod),
+                ),
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () async {
+                    final d = await showDatePicker(
+                      context: ctx,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2100),
+                    );
+                    if (d != null) setState(() => selectedDate = d);
+                  },
+                  child: InputDecorator(
+                    decoration:
+                        const InputDecoration(labelText: 'Date du paiement'),
+                    child:
+                        Text(MoroccoFormat.date(selectedDate)),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: bankRefCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Réf. bancaire / N° chèque'),
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: notesCtrl,
+                  decoration: const InputDecoration(labelText: 'Notes'),
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Annuler')),
+            FilledButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                final payment = PaymentReceived(
+                  invoiceId: inv.id!,
+                  amount: double.parse(amountCtrl.text),
+                  method: selectedMethod,
+                  paymentDate: selectedDate,
+                  bankRef:
+                      bankRefCtrl.text.isEmpty ? null : bankRefCtrl.text,
+                  notes: notesCtrl.text.isEmpty ? null : notesCtrl.text,
+                );
+                await ref
+                    .read(paymentsReceivedProvider.notifier)
+                    .record(payment, inv.totalTtc);
+                if (ctx.mounted) {
+                  Navigator.of(ctx).pop();
+                  ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                    content: Text('Paiement enregistré'),
+                    backgroundColor: Colors.green,
+                  ));
+                }
+              },
+              child: const Text('Enregistrer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Payments Received Tab ─────────────────────────────────────────────────────
+
+class _PaymentsReceivedTab extends ConsumerWidget {
+  const _PaymentsReceivedTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final async = ref.watch(paymentsReceivedProvider);
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          async.whenOrNull(
+                  data: (list) => Text(
+                      '${list.length} paiements reçus',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant))) ??
+              const SizedBox.shrink(),
+          const SizedBox(height: 16),
+          Expanded(
+            child: async.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Erreur: $e')),
+              data: (payments) {
+                if (payments.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.payments_outlined,
+                            size: 48,
+                            color: theme.colorScheme.onSurfaceVariant),
+                        const SizedBox(height: 12),
+                        Text('Aucun paiement enregistré',
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                                color:
+                                    theme.colorScheme.onSurfaceVariant)),
+                        const SizedBox(height: 4),
+                        Text(
+                            'Utilisez le bouton "paiement" sur une facture envoyée',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color:
+                                    theme.colorScheme.onSurfaceVariant)),
+                      ],
+                    ),
+                  );
+                }
+
+                final totalCollected = payments.fold(
+                    0.0, (sum, p) => sum + p.amount);
+
+                return Column(
+                  children: [
+                    // Summary banner
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20, vertical: 12),
+                      decoration: BoxDecoration(
+                        color:
+                            Colors.green.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.check_circle_outline,
+                            color: Colors.green, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Total encaissé: ${MoroccoFormat.mad(totalCollected)}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.green),
+                        ),
+                      ]),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: Card(
+                        child: SingleChildScrollView(
+                          child: DataTable(
+                            headingRowColor: WidgetStateProperty.all(
+                                theme.colorScheme
+                                    .surfaceContainerLowest),
+                            columnSpacing: 16,
+                            headingTextStyle:
+                                theme.textTheme.labelMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            columns: const [
+                              DataColumn(label: Text('FACTURE')),
+                              DataColumn(label: Text('CLIENT')),
+                              DataColumn(label: Text('DATE')),
+                              DataColumn(label: Text('MODE')),
+                              DataColumn(label: Text('RÉF. BANCAIRE')),
+                              DataColumn(
+                                  label: Text('MONTANT'), numeric: true),
+                              DataColumn(label: Text('ACTIONS')),
+                            ],
+                            rows: payments
+                                .map((p) => DataRow(cells: [
+                                      DataCell(Text(
+                                          p.invoiceRef ?? '—',
+                                          style: const TextStyle(
+                                              fontWeight:
+                                                  FontWeight.w500))),
+                                      DataCell(
+                                          Text(p.clientName ?? '—')),
+                                      DataCell(Text(
+                                          MoroccoFormat.date(
+                                              p.paymentDate))),
+                                      DataCell(Text(p.method)),
+                                      DataCell(
+                                          Text(p.bankRef ?? '—')),
+                                      DataCell(Text(
+                                        MoroccoFormat.mad(p.amount),
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.green),
+                                      )),
+                                      DataCell(IconButton(
+                                        icon: const Icon(Icons.delete_outline,
+                                            size: 18, color: Colors.red),
+                                        tooltip: 'Supprimer',
+                                        visualDensity: VisualDensity.compact,
+                                        onPressed: () => ref
+                                            .read(paymentsReceivedProvider
+                                                .notifier)
+                                            .remove(p.id!),
+                                      )),
+                                    ]))
+                                .toList(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

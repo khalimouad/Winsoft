@@ -59,6 +59,7 @@ class Invoice {
   final double totalHt;
   final double totalTva;
   final double totalTtc;
+  final double amountPaid;    // sum of payments_received for this invoice
   final List<InvoiceItem> items;
 
   const Invoice({
@@ -75,8 +76,12 @@ class Invoice {
     this.totalHt = 0,
     this.totalTva = 0,
     this.totalTtc = 0,
+    this.amountPaid = 0,
     this.items = const [],
   });
+
+  double get amountDue => totalTtc - amountPaid;
+  bool get isFullyPaid => amountDue <= 0.01;
 
   bool get isOverdue =>
       status != 'Payée' &&
@@ -100,6 +105,7 @@ class Invoice {
         totalHt: (m['total_ht'] as num?)?.toDouble() ?? 0,
         totalTva: (m['total_tva'] as num?)?.toDouble() ?? 0,
         totalTtc: (m['total_ttc'] as num?)?.toDouble() ?? 0,
+        amountPaid: (m['amount_paid'] as num?)?.toDouble() ?? 0,
         items: items,
       );
 
@@ -131,6 +137,7 @@ class Invoice {
     double? totalHt,
     double? totalTva,
     double? totalTtc,
+    double? amountPaid,
     List<InvoiceItem>? items,
   }) =>
       Invoice(
@@ -147,6 +154,7 @@ class Invoice {
         totalHt: totalHt ?? this.totalHt,
         totalTva: totalTva ?? this.totalTva,
         totalTtc: totalTtc ?? this.totalTtc,
+        amountPaid: amountPaid ?? this.amountPaid,
         items: items ?? this.items,
       );
 }
