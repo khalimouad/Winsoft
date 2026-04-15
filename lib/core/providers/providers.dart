@@ -16,6 +16,8 @@ import '../models/product_category.dart';
 import '../models/physical_inventory.dart';
 import '../models/fiscal_year.dart';
 import '../models/bank_account.dart';
+import '../models/employee_contract.dart';
+import '../models/employee_loan.dart';
 import '../models/supplier.dart';
 import '../models/purchase_order.dart';
 import '../models/supplier_invoice.dart';
@@ -42,6 +44,8 @@ import '../repositories/product_category_repository.dart';
 import '../repositories/physical_inventory_repository.dart';
 import '../repositories/fiscal_year_repository.dart';
 import '../repositories/bank_account_repository.dart';
+import '../repositories/employee_contract_repository.dart';
+import '../repositories/employee_loan_repository.dart';
 import '../repositories/supplier_repository.dart';
 import '../repositories/purchase_order_repository.dart';
 import '../repositories/supplier_invoice_repository.dart';
@@ -1038,3 +1042,69 @@ class BankAccountNotifier extends AsyncNotifier<List<BankAccount>> {
 final bankAccountProvider =
     AsyncNotifierProvider<BankAccountNotifier, List<BankAccount>>(
         BankAccountNotifier.new);
+
+// ── Employee Contracts ────────────────────────────────────────────────────────
+
+final employeeContractRepoProvider =
+    Provider((_) => EmployeeContractRepository());
+
+class EmployeeContractNotifier
+    extends AsyncNotifier<List<EmployeeContract>> {
+  @override
+  Future<List<EmployeeContract>> build() =>
+      ref.read(employeeContractRepoProvider).getAll();
+
+  Future<void> add(EmployeeContract contract) async {
+    await ref.read(employeeContractRepoProvider).insert(contract);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(employeeContractRepoProvider).updateStatus(id, status);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(employeeContractRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final employeeContractProvider =
+    AsyncNotifierProvider<EmployeeContractNotifier, List<EmployeeContract>>(
+        EmployeeContractNotifier.new);
+
+// ── Employee Loans ────────────────────────────────────────────────────────────
+
+final employeeLoanRepoProvider =
+    Provider((_) => EmployeeLoanRepository());
+
+class EmployeeLoanNotifier extends AsyncNotifier<List<EmployeeLoan>> {
+  @override
+  Future<List<EmployeeLoan>> build() =>
+      ref.read(employeeLoanRepoProvider).getAll();
+
+  Future<void> add(EmployeeLoan loan) async {
+    await ref.read(employeeLoanRepoProvider).insert(loan);
+    ref.invalidateSelf();
+  }
+
+  Future<void> recordPayment(int id, double payment) async {
+    await ref.read(employeeLoanRepoProvider).recordPayment(id, payment);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(employeeLoanRepoProvider).updateStatus(id, status);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(employeeLoanRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final employeeLoanProvider =
+    AsyncNotifierProvider<EmployeeLoanNotifier, List<EmployeeLoan>>(
+        EmployeeLoanNotifier.new);

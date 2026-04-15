@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models/app_lists.dart';
 import '../../core/models/employee.dart';
 import '../../core/models/payroll_slip.dart';
+import '../../core/models/employee_contract.dart';
+import '../../core/models/employee_loan.dart';
 import '../../core/providers/providers.dart';
 import '../../core/utils/morocco_format.dart';
 
@@ -20,7 +22,7 @@ class _HrPageState extends ConsumerState<HrPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: 5, vsync: this);
   }
 
   @override
@@ -50,6 +52,8 @@ class _HrPageState extends ConsumerState<HrPage>
               Tab(text: 'Employés'),
               Tab(text: 'Paie'),
               Tab(text: 'Congés'),
+              Tab(text: 'Contrats'),
+              Tab(text: 'Avances'),
             ],
           ),
           Expanded(
@@ -59,6 +63,8 @@ class _HrPageState extends ConsumerState<HrPage>
                 _EmployeesTab(),
                 _PayrollTab(),
                 _LeavesTab(),
+                _ContractsTab(),
+                _LoansTab(),
               ],
             ),
           ),
@@ -957,5 +963,540 @@ class _LeavesTabState extends ConsumerState<_LeavesTab> {
         ),
       );
     });
+  }
+}
+
+// ── Contracts Tab ─────────────────────────────────────────────────────────────
+
+class _ContractsTab extends ConsumerWidget {
+  const _ContractsTab();
+
+  static const _statusColors = {
+    'Actif':    Colors.green,
+    'Expiré':   Colors.orange,
+    'Résilié':  Colors.red,
+  };
+
+  static const _typeColors = {
+    'CDI':    Colors.blue,
+    'CDD':    Colors.orange,
+    'Intérim': Colors.purple,
+    'Stage':  Colors.teal,
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final contractsAsync = ref.watch(employeeContractProvider);
+    final employeesAsync = ref.watch(employeeProvider);
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(children: [
+        Row(children: [
+          const Spacer(),
+          FilledButton.icon(
+            onPressed: () => employeesAsync.whenData(
+                (employees) =>
+                    _showAddDialog(context, ref, employees)),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Nouveau contrat'),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        Expanded(
+          child: contractsAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Erreur: $e')),
+            data: (contracts) {
+              if (contracts.isEmpty) {
+                return const Center(child: Text('Aucun contrat'));
+              }
+              return ListView.builder(
+                itemCount: contracts.length,
+                itemBuilder: (ctx, i) {
+                  final c = contracts[i];
+                  final statusColor =
+                      _statusColors[c.status] ?? Colors.grey;
+                  final typeColor =
+                      _typeColors[c.contractType] ?? Colors.grey;
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Row(children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: typeColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(c.contractType,
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: typeColor,
+                                  fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(c.employeeName ?? '',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600)),
+                      ]),
+                      subtitle: Text(
+                          '${c.position ?? ''}'
+                          '${c.department != null ? ' · ${c.department}' : ''}'
+                          '\n${MoroccoFormat.dateFromMs(c.startDate)}'
+                          '${c.endDate != null ? ' → ${MoroccoFormat.dateFromMs(c.endDate!)}' : ' (indéterminé)'}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurfaceVariant)),
+                      isThreeLine: true,
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: statusColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(c.status,
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: statusColor,
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(MoroccoFormat.mad(c.grossSalary),
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert, size: 18),
+                          itemBuilder: (_) => ['Actif', 'Expiré', 'Résilié']
+                              .map((s) => PopupMenuItem(
+                                  value: s, child: Text(s)))
+                              .toList(),
+                          onSelected: (s) => ref
+                              .read(employeeContractProvider.notifier)
+                              .updateStatus(c.id!, s),
+                        ),
+                      ]),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+
+  void _showAddDialog(BuildContext context, WidgetRef ref,
+      List<Employee> employees) {
+    if (employees.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Ajoutez d\'abord un employé')));
+      return;
+    }
+    int? selectedEmployeeId = employees.first.id;
+    String contractType = 'CDI';
+    DateTime startDate = DateTime.now();
+    DateTime? endDate;
+    final salaryCtrl = TextEditingController();
+    final posCtrl = TextEditingController();
+    final deptCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Nouveau contrat'),
+          content: SizedBox(
+            width: 420,
+            child: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  DropdownButtonFormField<int>(
+                    value: selectedEmployeeId,
+                    decoration:
+                        const InputDecoration(labelText: 'Employé *'),
+                    items: employees
+                        .map((e) => DropdownMenuItem(
+                            value: e.id,
+                            child: Text(
+                                e.name)))
+                        .toList(),
+                    onChanged: (v) =>
+                        setState(() => selectedEmployeeId = v),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: contractType,
+                    decoration:
+                        const InputDecoration(labelText: 'Type de contrat'),
+                    items: ['CDI', 'CDD', 'Intérim', 'Stage']
+                        .map((t) =>
+                            DropdownMenuItem(value: t, child: Text(t)))
+                        .toList(),
+                    onChanged: (v) =>
+                        setState(() => contractType = v!),
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: salaryCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Salaire brut (MAD) *'),
+                    keyboardType: TextInputType.number,
+                    validator: (v) =>
+                        (double.tryParse(v ?? '') ?? 0) <= 0
+                            ? 'Requis'
+                            : null,
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: posCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'Poste'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: deptCtrl,
+                    decoration:
+                        const InputDecoration(labelText: 'Département'),
+                  ),
+                  const SizedBox(height: 10),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Date de début',
+                        style: TextStyle(fontSize: 13)),
+                    subtitle: Text(MoroccoFormat.date(startDate)),
+                    trailing: const Icon(Icons.calendar_today, size: 18),
+                    onTap: () async {
+                      final d = await showDatePicker(
+                          context: ctx,
+                          initialDate: startDate,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100));
+                      if (d != null) setState(() => startDate = d);
+                    },
+                  ),
+                  if (contractType != 'CDI')
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Date de fin',
+                          style: TextStyle(fontSize: 13)),
+                      subtitle: Text(endDate != null
+                          ? MoroccoFormat.date(endDate!)
+                          : '— Non définie —'),
+                      trailing: const Icon(Icons.calendar_today, size: 18),
+                      onTap: () async {
+                        final d = await showDatePicker(
+                            context: ctx,
+                            initialDate:
+                                endDate ?? startDate.add(const Duration(days: 365)),
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100));
+                        if (d != null) setState(() => endDate = d);
+                      },
+                    ),
+                ]),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Annuler')),
+            FilledButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                final contract = EmployeeContract(
+                  employeeId: selectedEmployeeId!,
+                  contractType: contractType,
+                  startDate: startDate.millisecondsSinceEpoch,
+                  endDate: endDate?.millisecondsSinceEpoch,
+                  grossSalary: double.parse(salaryCtrl.text),
+                  position: posCtrl.text.trim().isEmpty
+                      ? null
+                      : posCtrl.text.trim(),
+                  department: deptCtrl.text.trim().isEmpty
+                      ? null
+                      : deptCtrl.text.trim(),
+                );
+                await ref
+                    .read(employeeContractProvider.notifier)
+                    .add(contract);
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              },
+              child: const Text('Créer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Loans Tab ─────────────────────────────────────────────────────────────────
+
+class _LoansTab extends ConsumerWidget {
+  const _LoansTab();
+
+  static const _statusColors = {
+    'En cours':    Colors.blue,
+    'Remboursé':   Colors.green,
+    'Annulé':      Colors.red,
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final loansAsync = ref.watch(employeeLoanProvider);
+    final employeesAsync = ref.watch(employeeProvider);
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(children: [
+        Row(children: [
+          const Spacer(),
+          FilledButton.icon(
+            onPressed: () => employeesAsync.whenData(
+                (employees) =>
+                    _showAddDialog(context, ref, employees)),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Nouvelle avance'),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        Expanded(
+          child: loansAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Erreur: $e')),
+            data: (loans) {
+              if (loans.isEmpty) {
+                return const Center(child: Text('Aucune avance sur salaire'));
+              }
+              final totalActive = loans
+                  .where((l) => l.status == 'En cours')
+                  .fold<double>(0, (s, l) => s + l.amountRemaining);
+              return Column(children: [
+                if (totalActive > 0)
+                  Container(
+                    color: theme.colorScheme.primaryContainer,
+                    padding: const EdgeInsets.all(12),
+                    child: Row(children: [
+                      const Icon(Icons.account_balance_wallet, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                          'Total avances en cours: ${MoroccoFormat.mad(totalActive)}',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ]),
+                  ),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: loans.length,
+                    itemBuilder: (ctx, i) {
+                      final loan = loans[i];
+                      final color =
+                          _statusColors[loan.status] ?? Colors.grey;
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          title: Row(children: [
+                            Text(loan.employeeName ?? '',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: color.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(loan.status,
+                                  style: TextStyle(
+                                      fontSize: 10,
+                                      color: color,
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                          ]),
+                          subtitle: Text(
+                              'Montant: ${MoroccoFormat.mad(loan.amount)} · '
+                              'Remboursé: ${MoroccoFormat.mad(loan.amountPaid)} · '
+                              'Restant: ${MoroccoFormat.mad(loan.amountRemaining)}',
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color:
+                                      theme.colorScheme.onSurfaceVariant)),
+                          trailing: loan.status == 'En cours'
+                              ? IconButton(
+                                  icon: const Icon(Icons.payments_outlined,
+                                      size: 18),
+                                  tooltip: 'Enregistrer remboursement',
+                                  onPressed: () => _showPaymentDialog(
+                                      context, ref, loan),
+                                )
+                              : null,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ]);
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+
+  void _showAddDialog(BuildContext context, WidgetRef ref,
+      List<Employee> employees) {
+    if (employees.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Ajoutez d\'abord un employé')));
+      return;
+    }
+    int? selectedEmployeeId = employees.first.id;
+    final amountCtrl = TextEditingController();
+    final deductionCtrl = TextEditingController();
+    final reasonCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Text('Nouvelle avance sur salaire'),
+          content: SizedBox(
+            width: 380,
+            child: Form(
+              key: formKey,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                DropdownButtonFormField<int>(
+                  value: selectedEmployeeId,
+                  decoration:
+                      const InputDecoration(labelText: 'Employé *'),
+                  items: employees
+                      .map((e) => DropdownMenuItem(
+                          value: e.id,
+                          child: Text(e.name)))
+                      .toList(),
+                  onChanged: (v) =>
+                      setState(() => selectedEmployeeId = v),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: amountCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Montant (MAD) *',
+                      suffixText: 'MAD'),
+                  keyboardType: TextInputType.number,
+                  validator: (v) =>
+                      (double.tryParse(v ?? '') ?? 0) <= 0
+                          ? 'Requis'
+                          : null,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: deductionCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Déduction mensuelle (MAD)',
+                      suffixText: 'MAD'),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: reasonCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'Motif'),
+                  maxLines: 2,
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Annuler')),
+            FilledButton(
+              onPressed: () async {
+                if (!formKey.currentState!.validate()) return;
+                final loan = EmployeeLoan(
+                  employeeId: selectedEmployeeId!,
+                  amount: double.parse(amountCtrl.text),
+                  monthlyDeduction:
+                      double.tryParse(deductionCtrl.text) ?? 0,
+                  startDate: DateTime.now().millisecondsSinceEpoch,
+                  reason: reasonCtrl.text.trim().isEmpty
+                      ? null
+                      : reasonCtrl.text.trim(),
+                );
+                await ref
+                    .read(employeeLoanProvider.notifier)
+                    .add(loan);
+                if (ctx.mounted) Navigator.of(ctx).pop();
+              },
+              child: const Text('Créer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPaymentDialog(
+      BuildContext context, WidgetRef ref, EmployeeLoan loan) {
+    final amountCtrl = TextEditingController(
+        text: loan.monthlyDeduction > 0
+            ? loan.monthlyDeduction.toStringAsFixed(2)
+            : loan.amountRemaining.toStringAsFixed(2));
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Remboursement — ${loan.employeeName}'),
+        content: Form(
+          key: formKey,
+          child: TextFormField(
+            controller: amountCtrl,
+            decoration: const InputDecoration(
+                labelText: 'Montant remboursé *', suffixText: 'MAD'),
+            keyboardType: TextInputType.number,
+            validator: (v) =>
+                (double.tryParse(v ?? '') ?? 0) <= 0
+                    ? 'Requis'
+                    : null,
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+              await ref
+                  .read(employeeLoanProvider.notifier)
+                  .recordPayment(
+                      loan.id!, double.parse(amountCtrl.text));
+              if (ctx.mounted) Navigator.of(ctx).pop();
+            },
+            child: const Text('Enregistrer'),
+          ),
+        ],
+      ),
+    );
   }
 }

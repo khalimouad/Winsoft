@@ -18,7 +18,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 10,
+      version: 11,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
@@ -162,6 +162,7 @@ class DatabaseHelper {
     await _createV8Tables(db);
     await _createV9Tables(db);
     await _createV10Tables(db);
+    await _createV11Tables(db);
     await _seedData(db);
   }
 
@@ -192,6 +193,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 10) {
       await _createV10Tables(db);
+    }
+    if (oldVersion < 11) {
+      await _createV11Tables(db);
     }
   }
 
@@ -676,6 +680,38 @@ class DatabaseHelper {
         'sort_order': 0,
       });
     } catch (_) {}
+  }
+
+  Future<void> _createV11Tables(Database db) async {
+    // ── Employee contracts ────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS employee_contracts (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_id     INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+        contract_type   TEXT    NOT NULL DEFAULT 'CDI',
+        start_date      INTEGER NOT NULL,
+        end_date        INTEGER,
+        gross_salary    REAL    NOT NULL DEFAULT 0,
+        position        TEXT,
+        department      TEXT,
+        status          TEXT    NOT NULL DEFAULT 'Actif',
+        notes           TEXT
+      )
+    ''');
+
+    // ── Employee loans (Avances sur salaire) ──────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS employee_loans (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        employee_id       INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+        amount            REAL    NOT NULL,
+        monthly_deduction REAL    NOT NULL DEFAULT 0,
+        start_date        INTEGER NOT NULL,
+        status            TEXT    NOT NULL DEFAULT 'En cours',
+        reason            TEXT,
+        amount_paid       REAL    NOT NULL DEFAULT 0
+      )
+    ''');
   }
 
   Future<void> _createV10Tables(Database db) async {
