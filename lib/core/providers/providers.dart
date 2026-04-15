@@ -14,6 +14,8 @@ import '../models/purchase_request.dart';
 import '../models/warehouse.dart';
 import '../models/product_category.dart';
 import '../models/physical_inventory.dart';
+import '../models/fiscal_year.dart';
+import '../models/bank_account.dart';
 import '../models/supplier.dart';
 import '../models/purchase_order.dart';
 import '../models/supplier_invoice.dart';
@@ -38,6 +40,8 @@ import '../repositories/purchase_request_repository.dart';
 import '../repositories/warehouse_repository.dart';
 import '../repositories/product_category_repository.dart';
 import '../repositories/physical_inventory_repository.dart';
+import '../repositories/fiscal_year_repository.dart';
+import '../repositories/bank_account_repository.dart';
 import '../repositories/supplier_repository.dart';
 import '../repositories/purchase_order_repository.dart';
 import '../repositories/supplier_invoice_repository.dart';
@@ -971,3 +975,66 @@ class PhysicalInventoryNotifier
 final physicalInventoryProvider =
     AsyncNotifierProvider<PhysicalInventoryNotifier, List<PhysicalInventory>>(
         PhysicalInventoryNotifier.new);
+
+// ── Fiscal Years ──────────────────────────────────────────────────────────────
+
+final fiscalYearRepoProvider = Provider((_) => FiscalYearRepository());
+
+class FiscalYearNotifier extends AsyncNotifier<List<FiscalYear>> {
+  @override
+  Future<List<FiscalYear>> build() =>
+      ref.read(fiscalYearRepoProvider).getAll();
+
+  Future<void> add(FiscalYear fy) async {
+    await ref.read(fiscalYearRepoProvider).insert(fy);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(fiscalYearRepoProvider).updateStatus(id, status);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(fiscalYearRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final fiscalYearProvider =
+    AsyncNotifierProvider<FiscalYearNotifier, List<FiscalYear>>(
+        FiscalYearNotifier.new);
+
+// ── Bank Accounts ─────────────────────────────────────────────────────────────
+
+final bankAccountRepoProvider = Provider((_) => BankAccountRepository());
+
+class BankAccountNotifier extends AsyncNotifier<List<BankAccount>> {
+  @override
+  Future<List<BankAccount>> build() =>
+      ref.read(bankAccountRepoProvider).getAll();
+
+  Future<void> add(BankAccount account) async {
+    await ref.read(bankAccountRepoProvider).insert(account);
+    ref.invalidateSelf();
+  }
+
+  Future<void> edit(BankAccount account) async {
+    await ref.read(bankAccountRepoProvider).update(account);
+    ref.invalidateSelf();
+  }
+
+  Future<void> setDefault(int id) async {
+    await ref.read(bankAccountRepoProvider).setDefault(id);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(bankAccountRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final bankAccountProvider =
+    AsyncNotifierProvider<BankAccountNotifier, List<BankAccount>>(
+        BankAccountNotifier.new);

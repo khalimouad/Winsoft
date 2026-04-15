@@ -18,7 +18,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 9,
+      version: 10,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
@@ -161,6 +161,7 @@ class DatabaseHelper {
     await _createV7Tables(db);
     await _createV8Tables(db);
     await _createV9Tables(db);
+    await _createV10Tables(db);
     await _seedData(db);
   }
 
@@ -188,6 +189,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 9) {
       await _createV9Tables(db);
+    }
+    if (oldVersion < 10) {
+      await _createV10Tables(db);
     }
   }
 
@@ -670,6 +674,47 @@ class DatabaseHelper {
         'list_name': 'grn_prefix',
         'value': 'GRN',
         'sort_order': 0,
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _createV10Tables(Database db) async {
+    // ── Fiscal years (Exercices fiscaux) ──────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS fiscal_years (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT    NOT NULL,
+        start_date INTEGER NOT NULL,
+        end_date   INTEGER NOT NULL,
+        status     TEXT    NOT NULL DEFAULT 'Ouverte'
+      )
+    ''');
+
+    // ── Bank accounts ─────────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS bank_accounts (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        name       TEXT    NOT NULL,
+        bank_name  TEXT,
+        iban       TEXT,
+        swift      TEXT,
+        rib        TEXT,
+        currency   TEXT    NOT NULL DEFAULT 'MAD',
+        is_default INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL
+      )
+    ''');
+
+    // Seed current fiscal year if table is empty
+    try {
+      final now = DateTime.now();
+      final start = DateTime(now.year, 1, 1).millisecondsSinceEpoch;
+      final end = DateTime(now.year, 12, 31, 23, 59, 59).millisecondsSinceEpoch;
+      await db.insert('fiscal_years', {
+        'name': 'Exercice ${now.year}',
+        'start_date': start,
+        'end_date': end,
+        'status': 'Ouverte',
       });
     } catch (_) {}
   }
