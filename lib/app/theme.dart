@@ -38,15 +38,20 @@ abstract class WsColors {
   static const teal500 = Color(0xFF14B8A6);
   static const amber500 = Color(0xFFF59E0B);
 
-  // Sidebar (always dark)
-  static const sidebarBg       = slate900;
-  static const sidebarBorder   = slate800;
-  static const sidebarHover    = slate800;
-  static const sidebarActive   = Color(0x26407BFF); // blue-600 @ 15%
-  static const sidebarActiveBorder = blue500;
-  static const sidebarText     = slate400;
+  // Sidebar (always dark — near-pure black ribbon)
+  static const sidebarBg         = Color(0xFF0A0B0D);
+  static const sidebarBorder     = Color(0xFF1A1C20);
+  static const sidebarHover      = Color(0xFF17181C);
+  // Blue circle hover ring for icons (blue-600 @ 22%)
+  static const sidebarIconHover  = Color(0x382563EB);
+  // Selected icon — pure blue filled circle
+  static const sidebarIconActive = blue600;
+  static const sidebarText       = Color(0xFF6B7280);   // muted label
   static const sidebarTextActive = Colors.white;
-  static const sidebarLabel    = slate600;
+  static const sidebarLabel      = Color(0xFF52555C);   // section dividers
+  // Legacy tokens kept for callers that still read them
+  static const sidebarActive       = Color(0x382563EB);
+  static const sidebarActiveBorder = blue500;
 }
 
 class AppTheme {
@@ -173,14 +178,14 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
       ),
 
-      // Cards — white, shadow, no border
+      // Cards — rounded, subtle shadow
       cardTheme: CardThemeData(
         elevation: 0,
         color: scheme.surface,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(16),
           side: BorderSide(
             color: isDark ? WsColors.slate700 : WsColors.slate200,
             width: 1,
@@ -197,8 +202,8 @@ class AppTheme {
           foregroundColor: scheme.onPrimary,
           elevation: 0,
           shadowColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 13),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: text.labelLarge,
         ),
       ),
@@ -210,8 +215,8 @@ class AppTheme {
           foregroundColor: scheme.onPrimary,
           elevation: 0,
           shadowColor: Colors.transparent,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: text.labelLarge?.copyWith(fontSize: 14),
         ),
       ),
@@ -220,9 +225,9 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: scheme.primary,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
           side: BorderSide(color: scheme.outline.withValues(alpha: 0.6)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           textStyle: text.labelLarge?.copyWith(fontSize: 14),
         ),
       ),
@@ -231,29 +236,29 @@ class AppTheme {
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: scheme.primary,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         ),
       ),
 
-      // Input fields — clean bordered style
+      // Input fields — clean bordered style, more rounded
       inputDecorationTheme: InputDecorationTheme(
         filled: false,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: scheme.outline.withValues(alpha: 0.6)),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: scheme.outlineVariant),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: scheme.primary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: scheme.error),
         ),
         labelStyle: text.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
@@ -261,13 +266,13 @@ class AppTheme {
         isDense: true,
       ),
 
-      // Chips
+      // Chips — pill-shaped
       chipTheme: ChipThemeData(
         backgroundColor: scheme.surfaceContainerHigh,
         side: BorderSide(color: scheme.outlineVariant),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         labelStyle: text.labelMedium,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
         selectedColor: scheme.primaryContainer,
         checkmarkColor: scheme.primary,
       ),
@@ -291,7 +296,7 @@ class AppTheme {
         elevation: 0,
         shadowColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(20),
           side: BorderSide(color: scheme.outlineVariant),
         ),
       ),
@@ -303,7 +308,7 @@ class AppTheme {
         elevation: 0,
         shadowColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(14),
           side: BorderSide(color: scheme.outlineVariant),
         ),
         textStyle: text.bodyMedium,

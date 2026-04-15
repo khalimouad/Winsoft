@@ -171,7 +171,7 @@ class WsCard extends StatelessWidget {
     super.key,
     required this.child,
     this.padding = const EdgeInsets.all(20),
-    this.radius = 12.0,
+    this.radius = 16.0,
     this.clip = true,
   });
 

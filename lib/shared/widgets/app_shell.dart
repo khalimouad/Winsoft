@@ -7,6 +7,9 @@ import '../../app/theme.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/models/app_user.dart';
 
+/// Width of the vertical icon ribbon on desktop / tablet.
+const double _kRibbonWidth = 88;
+
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.child});
   final Widget child;
@@ -36,25 +39,26 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     final w = MediaQuery.of(context).size.width;
-
-    if (w >= 1000) return _buildDesktop();
-    if (w >= 640)  return _buildRail();
+    if (w >= 640) return _buildDesktop();
     return _buildMobile();
   }
 
-  // ── Desktop layout ──────────────────────────────────────────────────────────
+  // ── Desktop / tablet layout — icon ribbon ────────────────────────────────────
 
   Widget _buildDesktop() {
     return Scaffold(
       backgroundColor: WsColors.sidebarBg,
       body: Row(children: [
-        _Sidebar(selectedIndex: _selectedIndex, onSelected: _onDestinationSelected),
-        // Content area — has its own background
+        _Ribbon(
+          selectedIndex: _selectedIndex,
+          onSelected: _onDestinationSelected,
+        ),
+        // Rounded content area floating on black sidebar
         Expanded(
           child: ClipRRect(
             borderRadius: const BorderRadius.only(
-              topLeft:     Radius.circular(12),
-              bottomLeft:  Radius.circular(12),
+              topLeft:    Radius.circular(20),
+              bottomLeft: Radius.circular(20),
             ),
             child: widget.child,
           ),
@@ -63,49 +67,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
   }
 
-  // ── Tablet rail ──────────────────────────────────────────────────────────────
-
-  Widget _buildRail() {
-    final theme = Theme.of(context);
-    return Scaffold(
-      body: Row(children: [
-        Container(
-          color: WsColors.sidebarBg,
-          child: NavigationRail(
-            backgroundColor: WsColors.sidebarBg,
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: _onDestinationSelected,
-            labelType: NavigationRailLabelType.none,
-            minWidth: 64,
-            selectedIconTheme: const IconThemeData(color: Colors.white, size: 20),
-            unselectedIconTheme:
-                const IconThemeData(color: WsColors.sidebarText, size: 20),
-            indicatorColor: WsColors.sidebarActive,
-            leading: Padding(
-              padding: const EdgeInsets.only(top: 16, bottom: 8),
-              child: _LogoMark(),
-            ),
-            destinations: appDestinations
-                .map((d) => NavigationRailDestination(
-                      icon: d.icon,
-                      selectedIcon: d.selectedIcon,
-                      label: Text(d.label,
-                          style: const TextStyle(
-                              fontSize: 10, color: WsColors.sidebarText)),
-                    ))
-                .toList(),
-          ),
-        ),
-        Container(width: 1, color: WsColors.sidebarBorder),
-        Expanded(child: widget.child),
-      ]),
-    );
-  }
-
   // ── Mobile ──────────────────────────────────────────────────────────────────
 
   Widget _buildMobile() {
-    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(appDestinations[_selectedIndex].label),
@@ -123,10 +87,10 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 }
 
-// ── Sidebar ──────────────────────────────────────────────────────────────────
+// ── Ribbon sidebar (desktop/tablet) ───────────────────────────────────────────
 
-class _Sidebar extends ConsumerWidget {
-  const _Sidebar({required this.selectedIndex, required this.onSelected});
+class _Ribbon extends ConsumerWidget {
+  const _Ribbon({required this.selectedIndex, required this.onSelected});
 
   final int selectedIndex;
   final ValueChanged<int> onSelected;
@@ -138,32 +102,47 @@ class _Sidebar extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
 
     return Container(
-      width: 248,
+      width: _kRibbonWidth,
       color: WsColors.sidebarBg,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // ── Brand header ────────────────────────────────────────────────────
-        _SidebarHeader(sub: sub),
-
-        // ── Nav items ───────────────────────────────────────────────────────
+      child: Column(children: [
+        const SizedBox(height: 18),
+        _LogoMark(),
+        const SizedBox(height: 6),
+        sub.maybeWhen(
+          data: (s) => Text(
+            s.isTrial ? 'ESSAI' : s.plan.name.toUpperCase(),
+            style: const TextStyle(
+              color: WsColors.blue400,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
+            ),
+          ),
+          orElse: () => const SizedBox.shrink(),
+        ),
+        const SizedBox(height: 18),
+        // Nav items — scrollable
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            physics: const BouncingScrollPhysics(),
             children: _buildNavItems(context),
           ),
         ),
-
-        // ── Trial banner ─────────────────────────────────────────────────────
+        // Trial banner (ribbon pill form)
         sub.maybeWhen(
-          data: (s) => s.isTrial ? _TrialBanner(daysLeft: s.daysRemaining) : const SizedBox.shrink(),
+          data: (s) => s.isTrial
+              ? _TrialPill(daysLeft: s.daysRemaining)
+              : const SizedBox.shrink(),
           orElse: () => const SizedBox.shrink(),
         ),
-
-        // ── User footer ──────────────────────────────────────────────────────
         Container(
           height: 1,
+          margin: const EdgeInsets.symmetric(horizontal: 16),
           color: WsColors.sidebarBorder,
         ),
-        _SidebarUserFooter(
+        const SizedBox(height: 10),
+        _RibbonUserFooter(
           user: auth.user,
           themeMode: themeMode,
           onToggleTheme: () {
@@ -172,24 +151,33 @@ class _Sidebar extends ConsumerWidget {
           },
           onLogout: () => ref.read(authProvider.notifier).logout(),
         ),
+        const SizedBox(height: 12),
       ]),
     );
   }
 
   List<Widget> _buildNavItems(BuildContext context) {
-    final items     = <Widget>[];
+    final items   = <Widget>[];
     String? lastGrp;
 
     for (var i = 0; i < appDestinations.length; i++) {
       final dest = appDestinations[i];
 
+      // Thin divider between groups
       if (dest.groupLabel != null && dest.groupLabel != lastGrp) {
-        if (lastGrp != null) items.add(const SizedBox(height: 6));
-        items.add(_SectionLabel(label: dest.groupLabel!));
+        if (lastGrp != null) {
+          items.add(const SizedBox(height: 4));
+          items.add(Container(
+            height: 1,
+            margin: const EdgeInsets.symmetric(horizontal: 22),
+            color: WsColors.sidebarBorder,
+          ));
+          items.add(const SizedBox(height: 4));
+        }
         lastGrp = dest.groupLabel;
       }
 
-      items.add(_SidebarNavItem(
+      items.add(_RibbonNavItem(
         destination: dest,
         isSelected:  selectedIndex == i,
         onTap:       () => onSelected(i),
@@ -199,94 +187,39 @@ class _Sidebar extends ConsumerWidget {
   }
 }
 
-// ── Sidebar header ────────────────────────────────────────────────────────────
-
-class _SidebarHeader extends StatelessWidget {
-  const _SidebarHeader({required this.sub});
-  final AsyncValue<dynamic> sub;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(children: [
-        _LogoMark(),
-        const SizedBox(width: 10),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('WinSoft',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                    letterSpacing: -0.2)),
-            sub.maybeWhen(
-              data: (s) => Text(
-                'Plan ${s.plan.name}${s.isTrial ? "  •  Essai" : ""}',
-                style: const TextStyle(
-                    color: WsColors.blue400,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600),
-              ),
-              orElse: () => const SizedBox.shrink(),
-            ),
-          ],
-        ),
-      ]),
-    );
-  }
-}
+// ── Logo ──────────────────────────────────────────────────────────────────────
 
 class _LogoMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 30,
-      height: 30,
+      width: 42,
+      height: 42,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [WsColors.blue500, WsColors.blue700],
         ),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: WsColors.blue600.withValues(alpha: 0.35),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: const Icon(Icons.business_center_rounded,
-          color: Colors.white, size: 16),
+          color: Colors.white, size: 20),
     );
   }
 }
 
-// ── Section label ─────────────────────────────────────────────────────────────
+// ── Ribbon nav item — icon circle + label ────────────────────────────────────
 
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 12, 10, 4),
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 10.5,
-          fontWeight: FontWeight.w700,
-          color: WsColors.sidebarLabel,
-          letterSpacing: 0.7,
-        ),
-      ),
-    );
-  }
-}
-
-// ── Nav item ──────────────────────────────────────────────────────────────────
-
-class _SidebarNavItem extends StatefulWidget {
-  const _SidebarNavItem({
+class _RibbonNavItem extends StatefulWidget {
+  const _RibbonNavItem({
     required this.destination,
     required this.isSelected,
     required this.onTap,
@@ -297,10 +230,10 @@ class _SidebarNavItem extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<_SidebarNavItem> createState() => _SidebarNavItemState();
+  State<_RibbonNavItem> createState() => _RibbonNavItemState();
 }
 
-class _SidebarNavItemState extends State<_SidebarNavItem> {
+class _RibbonNavItemState extends State<_RibbonNavItem> {
   bool _hovering = false;
 
   @override
@@ -308,68 +241,74 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
     final sel   = widget.isSelected;
     final hover = _hovering && !sel;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
+    // Icon bubble color
+    final Color bubbleColor = sel
+        ? WsColors.sidebarIconActive
+        : hover
+            ? WsColors.sidebarIconHover
+            : Colors.transparent;
+
+    // Label color
+    final Color labelColor = sel
+        ? Colors.white
+        : hover
+            ? Colors.white
+            : WsColors.sidebarText;
+
+    return Tooltip(
+      message: widget.destination.label,
+      waitDuration: const Duration(milliseconds: 400),
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovering = true),
         onExit:  (_) => setState(() => _hovering = false),
         cursor:  SystemMouseCursors.click,
         child: GestureDetector(
           onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            decoration: BoxDecoration(
-              color: sel
-                  ? WsColors.sidebarActive
-                  : hover
-                      ? WsColors.sidebarHover.withValues(alpha: 0.7)
-                      : Colors.transparent,
-              borderRadius: BorderRadius.circular(7),
-              border: sel
-                  ? Border(
-                      left: BorderSide(
-                        color: WsColors.sidebarActiveBorder,
-                        width: 2.5,
-                      ),
-                    )
-                  : null,
-            ),
-            padding: EdgeInsets.only(
-              left: sel ? 10 : 12,
-              right: 12,
-              top: 8,
-              bottom: 8,
-            ),
-            child: Row(children: [
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 150),
+          behavior: HitTestBehavior.opaque,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+            child: Column(children: [
+              // Circle with icon
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: bubbleColor,
+                  shape: BoxShape.circle,
+                  boxShadow: sel
+                      ? [
+                          BoxShadow(
+                            color: WsColors.blue600.withValues(alpha: 0.4),
+                            blurRadius: 12,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
+                ),
                 child: IconTheme(
-                  key: ValueKey(sel),
-                  data: IconThemeData(
-                    color: sel
-                        ? Colors.white
-                        : hover
-                            ? const Color(0xFFCBD5E1)
-                            : WsColors.sidebarText,
-                    size: 17,
-                  ),
+                  data: const IconThemeData(color: Colors.white, size: 20),
                   child: sel
                       ? widget.destination.selectedIcon
                       : widget.destination.icon,
                 ),
               ),
-              const SizedBox(width: 10),
-              Text(
-                widget.destination.label,
-                style: TextStyle(
-                  color: sel
-                      ? Colors.white
-                      : hover
-                          ? const Color(0xFFCBD5E1)
-                          : WsColors.sidebarText,
-                  fontSize: 13.5,
-                  fontWeight: sel ? FontWeight.w600 : FontWeight.w400,
-                  letterSpacing: -0.1,
+              const SizedBox(height: 4),
+              // Label
+              SizedBox(
+                height: 14,
+                child: Text(
+                  widget.destination.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: labelColor,
+                    fontSize: 9.5,
+                    fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                    letterSpacing: 0.1,
+                  ),
                 ),
               ),
             ]),
@@ -380,49 +319,51 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
   }
 }
 
-// ── Trial banner ──────────────────────────────────────────────────────────────
+// ── Trial pill ────────────────────────────────────────────────────────────────
 
-class _TrialBanner extends StatelessWidget {
-  const _TrialBanner({required this.daysLeft});
+class _TrialPill extends StatelessWidget {
+  const _TrialPill({required this.daysLeft});
   final int daysLeft;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: WsColors.blue900.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: WsColors.blue700.withValues(alpha: 0.5)),
-      ),
-      child: Row(children: [
-        const Icon(Icons.auto_awesome, size: 14, color: WsColors.amber500),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'Essai gratuit — $daysLeft j. restants',
-            style: const TextStyle(
-                fontSize: 12, color: Colors.white, fontWeight: FontWeight.w500),
+    return Tooltip(
+      message: 'Essai gratuit — $daysLeft jours restants',
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
+        child: GestureDetector(
+          onTap: () => context.go('/subscription'),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: WsColors.blue900.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: WsColors.blue700.withValues(alpha: 0.5),
+              ),
+            ),
+            child: Column(children: [
+              const Icon(Icons.auto_awesome,
+                  size: 14, color: WsColors.amber500),
+              const SizedBox(height: 2),
+              Text('$daysLeft j',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  )),
+            ]),
           ),
         ),
-        GestureDetector(
-          onTap: () => context.go('/subscription'),
-          child: const Text('Passer au Pro →',
-              style: TextStyle(
-                  fontSize: 11,
-                  color: WsColors.blue400,
-                  fontWeight: FontWeight.w700)),
-        ),
-      ]),
+      ),
     );
   }
 }
 
-// ── User footer ───────────────────────────────────────────────────────────────
+// ── User footer (ribbon) ──────────────────────────────────────────────────────
 
-class _SidebarUserFooter extends StatelessWidget {
-  const _SidebarUserFooter({
+class _RibbonUserFooter extends StatelessWidget {
+  const _RibbonUserFooter({
     required this.user,
     required this.themeMode,
     required this.onToggleTheme,
@@ -441,113 +382,102 @@ class _SidebarUserFooter extends StatelessWidget {
         ? user!.name.trim().split(' ').take(2).map((w) => w[0]).join()
         : '?';
 
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Row(children: [
-        // Avatar
-        Container(
-          width: 34,
-          height: 34,
+    return Column(children: [
+      // Avatar
+      Tooltip(
+        message: '${user!.name}\n${AppUser.roleLabel(user!.role)}',
+        child: Container(
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [WsColors.blue600, WsColors.blue700],
+              colors: [WsColors.blue500, WsColors.blue700],
             ),
-            borderRadius: BorderRadius.circular(8),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: WsColors.blue600.withValues(alpha: 0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Center(
             child: Text(initials.toUpperCase(),
                 style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12)),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                )),
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(user!.name,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13),
-                  overflow: TextOverflow.ellipsis),
-              Text(AppUser.roleLabel(user!.role),
-                  style: const TextStyle(
-                      color: WsColors.sidebarText,
-                      fontSize: 11),
-                  overflow: TextOverflow.ellipsis),
-            ],
-          ),
-        ),
-        // Theme toggle
-        _SidebarIconButton(
-          icon: themeMode == ThemeMode.dark
-              ? Icons.light_mode_outlined
-              : Icons.dark_mode_outlined,
-          tooltip: 'Thème',
-          onTap: onToggleTheme,
-        ),
-        const SizedBox(width: 2),
-        // Logout
-        _SidebarIconButton(
-          icon: Icons.logout_rounded,
-          tooltip: 'Déconnexion',
-          color: const Color(0xFFF87171),
-          onTap: onLogout,
-        ),
-      ]),
-    );
+      ),
+      const SizedBox(height: 8),
+      // Theme toggle
+      _CircleIconButton(
+        icon: themeMode == ThemeMode.dark
+            ? Icons.light_mode_outlined
+            : Icons.dark_mode_outlined,
+        tooltip: 'Thème',
+        onTap: onToggleTheme,
+      ),
+      const SizedBox(height: 4),
+      // Logout
+      _CircleIconButton(
+        icon: Icons.logout_rounded,
+        tooltip: 'Déconnexion',
+        hoverColor: WsColors.red500.withValues(alpha: 0.2),
+        onTap: onLogout,
+      ),
+    ]);
   }
 }
 
-class _SidebarIconButton extends StatefulWidget {
-  const _SidebarIconButton({
+// ── Circle icon button (hover = blue circle) ─────────────────────────────────
+
+class _CircleIconButton extends StatefulWidget {
+  const _CircleIconButton({
     required this.icon,
     required this.onTap,
     required this.tooltip,
-    this.color,
+    this.hoverColor,
   });
 
   final IconData icon;
   final VoidCallback onTap;
   final String tooltip;
-  final Color? color;
+  final Color? hoverColor;
 
   @override
-  State<_SidebarIconButton> createState() => _SidebarIconButtonState();
+  State<_CircleIconButton> createState() => _CircleIconButtonState();
 }
 
-class _SidebarIconButtonState extends State<_SidebarIconButton> {
+class _CircleIconButtonState extends State<_CircleIconButton> {
   bool _hovering = false;
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovering = true),
-      onExit:  (_) => setState(() => _hovering = false),
-      cursor:  SystemMouseCursors.click,
-      child: Tooltip(
-        message: widget.tooltip,
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit:  (_) => setState(() => _hovering = false),
+        cursor:  SystemMouseCursors.click,
         child: GestureDetector(
           onTap: widget.onTap,
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 120),
-            width: 32,
-            height: 32,
+            duration: const Duration(milliseconds: 150),
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               color: _hovering
-                  ? WsColors.sidebarHover
+                  ? (widget.hoverColor ?? WsColors.sidebarIconHover)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
+              shape: BoxShape.circle,
             ),
-            child: Icon(widget.icon,
-                size: 16,
-                color: widget.color ?? WsColors.sidebarText),
+            child: Icon(widget.icon, size: 17, color: Colors.white),
           ),
         ),
       ),
@@ -567,43 +497,38 @@ class _MobileDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     return Drawer(
       backgroundColor: WsColors.sidebarBg,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topRight: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+      ),
       child: Column(children: [
         const SizedBox(height: 56),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
           child: Row(children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [WsColors.blue500, WsColors.blue700],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.business_center_rounded,
-                  color: Colors.white, size: 17),
-            ),
-            const SizedBox(width: 10),
+            _LogoMark(),
+            const SizedBox(width: 14),
             const Text('WinSoft',
                 style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18)),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 20,
+                  letterSpacing: -0.3,
+                )),
           ]),
         ),
         const Divider(color: WsColors.sidebarBorder, height: 1),
+        const SizedBox(height: 8),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             itemCount: appDestinations.length,
             itemBuilder: (ctx, i) {
               final dest = appDestinations[i];
               final sel  = selectedIndex == i;
-              return _SidebarNavItem(
+              return _MobileDrawerItem(
                 destination: dest,
                 isSelected: sel,
                 onTap: () => onSelected(i),
@@ -612,6 +537,84 @@ class _MobileDrawer extends StatelessWidget {
           ),
         ),
       ]),
+    );
+  }
+}
+
+class _MobileDrawerItem extends StatefulWidget {
+  const _MobileDrawerItem({
+    required this.destination,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final NavDestination destination;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  State<_MobileDrawerItem> createState() => _MobileDrawerItemState();
+}
+
+class _MobileDrawerItemState extends State<_MobileDrawerItem> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final sel   = widget.isSelected;
+    final hover = _hovering && !sel;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit:  (_) => setState(() => _hovering = false),
+        cursor:  SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: sel
+                  ? WsColors.sidebarIconHover
+                  : hover
+                      ? WsColors.sidebarHover
+                      : Colors.transparent,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: sel
+                      ? WsColors.sidebarIconActive
+                      : Colors.transparent,
+                  shape: BoxShape.circle,
+                ),
+                child: IconTheme(
+                  data: const IconThemeData(color: Colors.white, size: 18),
+                  child: sel
+                      ? widget.destination.selectedIcon
+                      : widget.destination.icon,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  widget.destination.label,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ),
+      ),
     );
   }
 }
