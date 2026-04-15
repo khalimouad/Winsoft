@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/models/invoice.dart';
 import '../../core/models/client.dart';
 import '../../core/models/credit_note.dart';
@@ -163,6 +164,7 @@ class _InvoicesTabState extends ConsumerState<_InvoicesTab> {
                 return Card(
                   child: SingleChildScrollView(
                     child: DataTable(
+                      showCheckboxColumn: false,
                       headingRowColor: WidgetStateProperty.all(
                           theme.colorScheme.surfaceContainerLowest),
                       columnSpacing: 16,
@@ -181,7 +183,10 @@ class _InvoicesTabState extends ConsumerState<_InvoicesTab> {
                         DataColumn(label: Text('STATUT')),
                         DataColumn(label: Text('ACTIONS')),
                       ],
-                      rows: filtered.map((inv) => DataRow(cells: [
+                      rows: filtered.map((inv) => DataRow(
+                        onSelectChanged: (_) =>
+                            context.push('/invoices/${inv.id}'),
+                        cells: [
                         DataCell(Text(inv.reference,
                             style: const TextStyle(fontWeight: FontWeight.w500))),
                         DataCell(Column(

@@ -9,6 +9,7 @@ import '../features/clients/clients_page.dart';
 import '../features/products/products_page.dart';
 import '../features/sales/sales_page.dart';
 import '../features/invoices/invoices_page.dart';
+import '../features/invoices/invoice_detail_page.dart';
 import '../features/purchases/purchases_page.dart';
 import '../features/hr/hr_page.dart';
 import '../features/accounting/accounting_page.dart';
@@ -88,6 +89,13 @@ GoRouter buildRouter(WidgetRef ref) {
             path: '/invoices',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: InvoicesPage()),
+          ),
+          GoRoute(
+            path: '/invoices/:id',
+            pageBuilder: (context, state) {
+              final id = int.parse(state.pathParameters['id']!);
+              return NoTransitionPage(child: InvoiceDetailPage(invoiceId: id));
+            },
           ),
           GoRoute(
             path: '/purchases',
