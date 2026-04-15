@@ -6,6 +6,8 @@ import '../models/client.dart';
 import '../models/product.dart';
 import '../models/sale_order.dart';
 import '../models/invoice.dart';
+import '../models/delivery.dart';
+import '../models/return_note.dart';
 import '../models/supplier.dart';
 import '../models/purchase_order.dart';
 import '../models/supplier_invoice.dart';
@@ -21,6 +23,8 @@ import '../repositories/client_repository.dart';
 import '../repositories/product_repository.dart';
 import '../repositories/sale_order_repository.dart';
 import '../repositories/invoice_repository.dart';
+import '../repositories/delivery_repository.dart';
+import '../repositories/return_note_repository.dart';
 import '../repositories/supplier_repository.dart';
 import '../repositories/purchase_order_repository.dart';
 import '../repositories/supplier_invoice_repository.dart';
@@ -644,3 +648,61 @@ class RecurringNotifier extends AsyncNotifier<List<RecurringTemplate>> {
 final recurringProvider =
     AsyncNotifierProvider<RecurringNotifier, List<RecurringTemplate>>(
         RecurringNotifier.new);
+
+// ── Deliveries (Bons de livraison) ────────────────────────────────────────────
+
+final deliveryRepoProvider = Provider((_) => DeliveryRepository());
+
+class DeliveryNotifier extends AsyncNotifier<List<Delivery>> {
+  @override
+  Future<List<Delivery>> build() =>
+      ref.read(deliveryRepoProvider).getAll();
+
+  Future<void> add(Delivery delivery, List<DeliveryItem> items) async {
+    await ref.read(deliveryRepoProvider).insert(delivery, items);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(deliveryRepoProvider).updateStatus(id, status);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(deliveryRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final deliveryProvider =
+    AsyncNotifierProvider<DeliveryNotifier, List<Delivery>>(
+        DeliveryNotifier.new);
+
+// ── Return Notes (Bons de retour) ─────────────────────────────────────────────
+
+final returnNoteRepoProvider = Provider((_) => ReturnNoteRepository());
+
+class ReturnNoteNotifier extends AsyncNotifier<List<ReturnNote>> {
+  @override
+  Future<List<ReturnNote>> build() =>
+      ref.read(returnNoteRepoProvider).getAll();
+
+  Future<void> add(ReturnNote rn, List<ReturnNoteItem> items) async {
+    await ref.read(returnNoteRepoProvider).insert(rn, items);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(returnNoteRepoProvider).updateStatus(id, status);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(returnNoteRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final returnNoteProvider =
+    AsyncNotifierProvider<ReturnNoteNotifier, List<ReturnNote>>(
+        ReturnNoteNotifier.new);

@@ -18,7 +18,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 5,
+      version: 6,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
@@ -157,6 +157,7 @@ class DatabaseHelper {
     await _createPosTables(db);
     await _createV4Tables(db);
     await _createV5Tables(db);
+    await _createV6Tables(db);
     await _seedData(db);
   }
 
@@ -172,6 +173,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 5) {
       await _createV5Tables(db);
+    }
+    if (oldVersion < 6) {
+      await _createV6Tables(db);
     }
   }
 
@@ -556,6 +560,79 @@ class DatabaseHelper {
       try {
         await db.execute('ALTER TABLE companies ADD COLUMN $col');
       } catch (_) {}
+    }
+  }
+
+  Future<void> _createV6Tables(Database db) async {
+    // ── Deliveries (Bons de livraison) ───────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS deliveries (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        reference   TEXT    NOT NULL UNIQUE,
+        order_id    INTEGER REFERENCES sale_orders(id) ON DELETE SET NULL,
+        client_id   INTEGER NOT NULL REFERENCES clients(id),
+        date        INTEGER NOT NULL,
+        status      TEXT    NOT NULL DEFAULT 'Brouillon',
+        notes       TEXT,
+        total_ht    REAL    NOT NULL DEFAULT 0,
+        total_tva   REAL    NOT NULL DEFAULT 0,
+        total_ttc   REAL    NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS delivery_items (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        delivery_id    INTEGER NOT NULL REFERENCES deliveries(id) ON DELETE CASCADE,
+        order_item_id  INTEGER REFERENCES sale_order_items(id) ON DELETE SET NULL,
+        product_id     INTEGER REFERENCES products(id) ON DELETE SET NULL,
+        description    TEXT    NOT NULL,
+        quantity       REAL    NOT NULL DEFAULT 1,
+        unit_price_ht  REAL    NOT NULL DEFAULT 0,
+        tva_rate       REAL    NOT NULL DEFAULT 20
+      )
+    ''');
+
+    // ── Return notes (Bons de retour) ────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS return_notes (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        reference    TEXT    NOT NULL UNIQUE,
+        delivery_id  INTEGER REFERENCES deliveries(id) ON DELETE SET NULL,
+        client_id    INTEGER NOT NULL REFERENCES clients(id),
+        date         INTEGER NOT NULL,
+        reason       TEXT,
+        status       TEXT    NOT NULL DEFAULT 'Brouillon',
+        notes        TEXT,
+        total_ht     REAL    NOT NULL DEFAULT 0,
+        total_tva    REAL    NOT NULL DEFAULT 0,
+        total_ttc    REAL    NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS return_note_items (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        return_note_id    INTEGER NOT NULL REFERENCES return_notes(id) ON DELETE CASCADE,
+        delivery_item_id  INTEGER REFERENCES delivery_items(id) ON DELETE SET NULL,
+        product_id        INTEGER REFERENCES products(id) ON DELETE SET NULL,
+        description       TEXT    NOT NULL,
+        quantity          REAL    NOT NULL DEFAULT 1,
+        unit_price_ht     REAL    NOT NULL DEFAULT 0,
+        tva_rate          REAL    NOT NULL DEFAULT 20
+      )
+    ''');
+
+    // Seed new settings keys (safe on both fresh install and upgrade)
+    for (final entry in {
+      'bl_prefix': 'BL',
+      'br_prefix': 'BR',
+    }.entries) {
+      await db.insert(
+        'settings',
+        {'key': entry.key, 'value': entry.value},
+        conflictAlgorithm: ConflictAlgorithm.ignore,
+      );
     }
   }
 
