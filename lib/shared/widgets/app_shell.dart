@@ -10,6 +10,34 @@ import '../../core/models/app_user.dart';
 /// Width of the vertical icon ribbon on desktop / tablet.
 const double _kRibbonWidth = 88;
 
+/// Bottom-nav quick-access indices (into [appDestinations]).
+/// The 5th slot in the bottom nav is always "Plus" (opens the full drawer).
+const List<int> _kBottomNavIndices = [
+  0, // Dashboard
+  3, // Bons de Commande
+  4, // Factures Clients
+  6, // Produits & Services
+];
+
+// ── Shell provider — lets pages inject a FAB ──────────────────────────────────
+
+/// Pages can call [ShellFab.set] to register a FAB in the bottom-right corner.
+/// The shell picks it up and renders it above the bottom navigation bar.
+final _fabProvider = StateProvider<Widget?>((ref) => null);
+
+/// Helper that pages can use to set / clear the shell FAB.
+abstract final class ShellFab {
+  /// Register [fab] as the current page's floating action button.
+  static void set(WidgetRef ref, Widget fab) =>
+      ref.read(_fabProvider.notifier).state = fab;
+
+  /// Remove the FAB (call in [dispose] or when the page leaves).
+  static void clear(WidgetRef ref) =>
+      ref.read(_fabProvider.notifier).state = null;
+}
+
+// ── AppShell ──────────────────────────────────────────────────────────────────
+
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.child});
   final Widget child;
@@ -20,6 +48,9 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   int _selectedIndex = 0;
+
+  /// Key for the mobile Scaffold so we can programmatically open the drawer.
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   void _onDestinationSelected(int index) {
     setState(() => _selectedIndex = index);
@@ -38,12 +69,12 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final w = MediaQuery.of(context).size.width;
+    final w = MediaQuery.sizeOf(context).width;
     if (w >= 640) return _buildDesktop();
     return _buildMobile();
   }
 
-  // ── Desktop / tablet layout — icon ribbon ────────────────────────────────────
+  // ── Desktop / tablet layout — icon ribbon ─────────────────────────────────
 
   Widget _buildDesktop() {
     return Scaffold(
@@ -53,7 +84,6 @@ class _AppShellState extends ConsumerState<AppShell> {
           selectedIndex: _selectedIndex,
           onSelected: _onDestinationSelected,
         ),
-        // Rounded content area floating on black sidebar
         Expanded(
           child: ClipRRect(
             borderRadius: const BorderRadius.only(
@@ -67,14 +97,24 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
   }
 
-  // ── Mobile ──────────────────────────────────────────────────────────────────
+  // ── Mobile layout — bottom navigation bar ────────────────────────────────
 
   Widget _buildMobile() {
+    // Map current full-nav index → bottom-nav index (4 = "Plus / More")
+    final bottomIdx = _kBottomNavIndices.contains(_selectedIndex)
+        ? _kBottomNavIndices.indexOf(_selectedIndex)
+        : 4; // "Plus" is highlighted when on a non-quick-access page
+
+    final fab = ref.watch(_fabProvider);
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(appDestinations[_selectedIndex].label),
-        actions: [_ThemeToggleButton(), const SizedBox(width: 8)],
+      key: _scaffoldKey,
+      // ── AppBar ──────────────────────────────────────────────────────────
+      appBar: _MobileAppBar(
+        title: appDestinations[_selectedIndex].label,
+        onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
       ),
+      // ── Full drawer (all routes) ────────────────────────────────────────
       drawer: _MobileDrawer(
         selectedIndex: _selectedIndex,
         onSelected: (i) {
@@ -82,12 +122,140 @@ class _AppShellState extends ConsumerState<AppShell> {
           _onDestinationSelected(i);
         },
       ),
+      // ── Content ─────────────────────────────────────────────────────────
       body: widget.child,
+      // ── FAB from current page ───────────────────────────────────────────
+      floatingActionButton: fab,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
+      // ── Bottom navigation ───────────────────────────────────────────────
+      bottomNavigationBar: _BottomNav(
+        selectedIndex: bottomIdx,
+        onDestinationSelected: (i) {
+          if (i == 4) {
+            // "Plus" tapped → open full drawer
+            _scaffoldKey.currentState?.openDrawer();
+          } else {
+            _onDestinationSelected(_kBottomNavIndices[i]);
+          }
+        },
+      ),
     );
   }
 }
 
-// ── Ribbon sidebar (desktop/tablet) ───────────────────────────────────────────
+// ── Mobile AppBar ─────────────────────────────────────────────────────────────
+
+class _MobileAppBar extends ConsumerWidget implements PreferredSizeWidget {
+  const _MobileAppBar({required this.title, required this.onMenuTap});
+
+  final String title;
+  final VoidCallback onMenuTap;
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+    return AppBar(
+      backgroundColor: WsColors.sidebarBg,
+      foregroundColor: Colors.white,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.menu_rounded),
+        color: Colors.white,
+        onPressed: onMenuTap,
+      ),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _LogoMark(size: 28),
+          const SizedBox(width: 10),
+          Flexible(
+            child: Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 15,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        IconButton(
+          icon: Icon(
+            themeMode == ThemeMode.dark
+                ? Icons.light_mode_outlined
+                : Icons.dark_mode_outlined,
+            color: Colors.white,
+          ),
+          onPressed: () {
+            ref.read(themeModeProvider.notifier).state =
+                themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+          },
+        ),
+        const SizedBox(width: 4),
+      ],
+    );
+  }
+}
+
+// ── Bottom navigation bar ─────────────────────────────────────────────────────
+
+class _BottomNav extends StatelessWidget {
+  const _BottomNav({
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return NavigationBar(
+      selectedIndex: selectedIndex,
+      onDestinationSelected: onDestinationSelected,
+      height: 64,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      backgroundColor: theme.colorScheme.surface,
+      indicatorColor: WsColors.blue600.withValues(alpha: 0.15),
+      destinations: const [
+        NavigationDestination(
+          icon: Icon(Icons.dashboard_outlined),
+          selectedIcon: Icon(Icons.dashboard, color: WsColors.blue600),
+          label: 'Accueil',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.shopping_cart_outlined),
+          selectedIcon: Icon(Icons.shopping_cart, color: WsColors.blue600),
+          label: 'Ventes',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.receipt_long_outlined),
+          selectedIcon: Icon(Icons.receipt_long, color: WsColors.blue600),
+          label: 'Factures',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.inventory_2_outlined),
+          selectedIcon: Icon(Icons.inventory_2, color: WsColors.blue600),
+          label: 'Produits',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.more_horiz_rounded),
+          selectedIcon: Icon(Icons.more_horiz_rounded, color: WsColors.blue600),
+          label: 'Plus',
+        ),
+      ],
+    );
+  }
+}
+
+// ── Ribbon sidebar (desktop/tablet) ──────────────────────────────────────────
 
 class _Ribbon extends ConsumerWidget {
   const _Ribbon({required this.selectedIndex, required this.onSelected});
@@ -121,7 +289,6 @@ class _Ribbon extends ConsumerWidget {
           orElse: () => const SizedBox.shrink(),
         ),
         const SizedBox(height: 18),
-        // Nav items — scrollable
         Expanded(
           child: ListView(
             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -129,7 +296,6 @@ class _Ribbon extends ConsumerWidget {
             children: _buildNavItems(context),
           ),
         ),
-        // Trial banner (ribbon pill form)
         sub.maybeWhen(
           data: (s) => s.isTrial
               ? _TrialPill(daysLeft: s.daysRemaining)
@@ -163,7 +329,6 @@ class _Ribbon extends ConsumerWidget {
     for (var i = 0; i < appDestinations.length; i++) {
       final dest = appDestinations[i];
 
-      // Thin divider between groups
       if (dest.groupLabel != null && dest.groupLabel != lastGrp) {
         if (lastGrp != null) {
           items.add(const SizedBox(height: 4));
@@ -187,21 +352,24 @@ class _Ribbon extends ConsumerWidget {
   }
 }
 
-// ── Logo ──────────────────────────────────────────────────────────────────────
+// ── Logo mark ─────────────────────────────────────────────────────────────────
 
 class _LogoMark extends StatelessWidget {
+  const _LogoMark({this.size = 42});
+  final double size;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 42,
-      height: 42,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [WsColors.blue500, WsColors.blue700],
         ),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(size * 0.33),
         boxShadow: [
           BoxShadow(
             color: WsColors.blue600.withValues(alpha: 0.35),
@@ -210,13 +378,13 @@ class _LogoMark extends StatelessWidget {
           ),
         ],
       ),
-      child: const Icon(Icons.business_center_rounded,
-          color: Colors.white, size: 20),
+      child: Icon(Icons.business_center_rounded,
+          color: Colors.white, size: size * 0.47),
     );
   }
 }
 
-// ── Ribbon nav item — icon circle + label ────────────────────────────────────
+// ── Ribbon nav item — icon circle + label ─────────────────────────────────────
 
 class _RibbonNavItem extends StatefulWidget {
   const _RibbonNavItem({
@@ -241,14 +409,12 @@ class _RibbonNavItemState extends State<_RibbonNavItem> {
     final sel   = widget.isSelected;
     final hover = _hovering && !sel;
 
-    // Icon bubble color
     final Color bubbleColor = sel
         ? WsColors.sidebarIconActive
         : hover
             ? WsColors.sidebarIconHover
             : Colors.transparent;
 
-    // Label color
     final Color labelColor = sel
         ? Colors.white
         : hover
@@ -268,7 +434,6 @@ class _RibbonNavItemState extends State<_RibbonNavItem> {
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
             child: Column(children: [
-              // Circle with icon
               AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 curve: Curves.easeOut,
@@ -295,7 +460,6 @@ class _RibbonNavItemState extends State<_RibbonNavItem> {
                 ),
               ),
               const SizedBox(height: 4),
-              // Label
               SizedBox(
                 height: 14,
                 child: Text(
@@ -383,7 +547,6 @@ class _RibbonUserFooter extends StatelessWidget {
         : '?';
 
     return Column(children: [
-      // Avatar
       Tooltip(
         message: '${user!.name}\n${AppUser.roleLabel(user!.role)}',
         child: Container(
@@ -415,7 +578,6 @@ class _RibbonUserFooter extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 8),
-      // Theme toggle
       _CircleIconButton(
         icon: themeMode == ThemeMode.dark
             ? Icons.light_mode_outlined
@@ -424,7 +586,6 @@ class _RibbonUserFooter extends StatelessWidget {
         onTap: onToggleTheme,
       ),
       const SizedBox(height: 4),
-      // Logout
       _CircleIconButton(
         icon: Icons.logout_rounded,
         tooltip: 'Déconnexion',
@@ -435,7 +596,7 @@ class _RibbonUserFooter extends StatelessWidget {
   }
 }
 
-// ── Circle icon button (hover = blue circle) ─────────────────────────────────
+// ── Circle icon button ────────────────────────────────────────────────────────
 
 class _CircleIconButton extends StatefulWidget {
   const _CircleIconButton({
@@ -487,54 +648,177 @@ class _CircleIconButtonState extends State<_CircleIconButton> {
 
 // ── Mobile drawer ─────────────────────────────────────────────────────────────
 
-class _MobileDrawer extends StatelessWidget {
+class _MobileDrawer extends ConsumerWidget {
   const _MobileDrawer({required this.selectedIndex, required this.onSelected});
 
   final int selectedIndex;
   final ValueChanged<int> onSelected;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auth = ref.watch(authProvider);
+    final sub  = ref.watch(subscriptionProvider);
+
     return Drawer(
       backgroundColor: WsColors.sidebarBg,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
-          topRight: Radius.circular(24),
+          topRight:    Radius.circular(24),
           bottomRight: Radius.circular(24),
         ),
       ),
-      child: Column(children: [
-        const SizedBox(height: 56),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          child: Row(children: [
-            _LogoMark(),
-            const SizedBox(width: 14),
-            const Text('WinSoft',
-                style: TextStyle(
+      child: SafeArea(
+        child: Column(children: [
+          // ── Header ────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+            child: Row(children: [
+              _LogoMark(size: 36),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('WinSoft',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                          letterSpacing: -0.3,
+                        )),
+                    sub.maybeWhen(
+                      data: (s) => Text(
+                        s.isTrial
+                            ? '${s.daysRemaining} jours d\'essai restants'
+                            : 'Plan ${s.plan.name}',
+                        style: const TextStyle(
+                          color: WsColors.blue400,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      orElse: () => const SizedBox.shrink(),
+                    ),
+                  ],
+                ),
+              ),
+            ]),
+          ),
+          Container(
+            height: 1,
+            color: WsColors.sidebarBorder,
+          ),
+          // ── Nav items ─────────────────────────────────────────────────
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              itemCount: appDestinations.length,
+              itemBuilder: (ctx, i) {
+                final dest     = appDestinations[i];
+                final prevDest = i > 0 ? appDestinations[i - 1] : null;
+                final showDiv  = dest.groupLabel != null &&
+                    dest.groupLabel != prevDest?.groupLabel;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (showDiv && i > 0) ...[
+                      const SizedBox(height: 4),
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4, bottom: 4),
+                        child: Text(
+                          dest.groupLabel!,
+                          style: const TextStyle(
+                            color: WsColors.sidebarText,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 1.0,
+                          ),
+                        ),
+                      ),
+                    ],
+                    _MobileDrawerItem(
+                      destination: dest,
+                      isSelected: selectedIndex == i,
+                      onTap: () => onSelected(i),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          // ── User footer ───────────────────────────────────────────────
+          if (auth.user != null) ...[
+            Container(height: 1, color: WsColors.sidebarBorder),
+            _DrawerUserFooter(
+              user: auth.user!,
+              onLogout: () {
+                Navigator.of(context).pop();
+                ref.read(authProvider.notifier).logout();
+              },
+            ),
+          ],
+        ]),
+      ),
+    );
+  }
+}
+
+class _DrawerUserFooter extends StatelessWidget {
+  const _DrawerUserFooter({required this.user, required this.onLogout});
+  final AppUser user;
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    final initials = user.name.isNotEmpty
+        ? user.name.trim().split(' ').take(2).map((w) => w[0]).join()
+        : '?';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [WsColors.blue500, WsColors.blue700],
+            ),
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(initials.toUpperCase(),
+                style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w700,
-                  fontSize: 20,
-                  letterSpacing: -0.3,
+                  fontSize: 13,
                 )),
-          ]),
-        ),
-        const Divider(color: WsColors.sidebarBorder, height: 1),
-        const SizedBox(height: 8),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            itemCount: appDestinations.length,
-            itemBuilder: (ctx, i) {
-              final dest = appDestinations[i];
-              final sel  = selectedIndex == i;
-              return _MobileDrawerItem(
-                destination: dest,
-                isSelected: sel,
-                onTap: () => onSelected(i),
-              );
-            },
           ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(user.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  )),
+              Text(AppUser.roleLabel(user.role),
+                  style: const TextStyle(
+                    color: WsColors.sidebarText,
+                    fontSize: 11,
+                  )),
+            ],
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 20),
+          tooltip: 'Déconnexion',
+          onPressed: onLogout,
         ),
       ]),
     );
@@ -564,75 +848,62 @@ class _MobileDrawerItemState extends State<_MobileDrawerItem> {
     final sel   = widget.isSelected;
     final hover = _hovering && !sel;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: MouseRegion(
-        onEnter: (_) => setState(() => _hovering = true),
-        onExit:  (_) => setState(() => _hovering = false),
-        cursor:  SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: sel
-                  ? WsColors.sidebarIconHover
-                  : hover
-                      ? WsColors.sidebarHover
-                      : Colors.transparent,
-              borderRadius: BorderRadius.circular(14),
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovering = true),
+      onExit:  (_) => setState(() => _hovering = false),
+      cursor:  SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.symmetric(vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+          decoration: BoxDecoration(
+            color: sel
+                ? WsColors.sidebarIconHover
+                : hover
+                    ? WsColors.sidebarHover
+                    : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: sel ? WsColors.sidebarIconActive : Colors.transparent,
+                shape: BoxShape.circle,
+              ),
+              child: IconTheme(
+                data: const IconThemeData(color: Colors.white, size: 18),
+                child: sel
+                    ? widget.destination.selectedIcon
+                    : widget.destination.icon,
+              ),
             ),
-            child: Row(children: [
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                widget.destination.label,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+            if (sel)
               Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: sel
-                      ? WsColors.sidebarIconActive
-                      : Colors.transparent,
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: WsColors.blue400,
                   shape: BoxShape.circle,
                 ),
-                child: IconTheme(
-                  data: const IconThemeData(color: Colors.white, size: 18),
-                  child: sel
-                      ? widget.destination.selectedIcon
-                      : widget.destination.icon,
-                ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  widget.destination.label,
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: sel ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
-              ),
-            ]),
-          ),
+          ]),
         ),
       ),
-    );
-  }
-}
-
-// ── Theme toggle (mobile AppBar) ──────────────────────────────────────────────
-
-class _ThemeToggleButton extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final themeMode = ref.watch(themeModeProvider);
-    return IconButton(
-      icon: Icon(themeMode == ThemeMode.dark
-          ? Icons.light_mode_outlined
-          : Icons.dark_mode_outlined),
-      onPressed: () {
-        ref.read(themeModeProvider.notifier).state =
-            themeMode == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
-      },
     );
   }
 }

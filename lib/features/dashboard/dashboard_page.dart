@@ -5,6 +5,7 @@ import '../../app/theme.dart';
 import '../../core/providers/providers.dart';
 import '../../core/services/stock_service.dart';
 import '../../core/utils/morocco_format.dart';
+import '../../shared/utils/responsive.dart';
 import '../../shared/widgets/stat_card.dart';
 import '../../shared/widgets/ws_components.dart';
 
@@ -40,31 +41,42 @@ class _DashboardBody extends StatelessWidget {
     ];
     final dateStr = '${now.day} ${months[now.month]} ${now.year}';
 
+    final isMobile = Responsive.isMobile(context);
+    final pad = isMobile ? 16.0 : 28.0;
+
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(28),
+      padding: EdgeInsets.all(pad),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Header ──────────────────────────────────────────────────────────
-          Row(children: [
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Tableau de bord',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w700, letterSpacing: -0.5)),
-                const SizedBox(height: 2),
-                Text(dateStr,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant)),
-              ]),
-            ),
-            WsButton(
-              label: 'Nouvelle facture',
-              icon: Icons.add_rounded,
-              onPressed: () {},
-            ),
-          ]),
-          const SizedBox(height: 28),
+          if (isMobile) ...[
+            Text('Tableau de bord',
+                style: theme.textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700, letterSpacing: -0.3)),
+            Text(dateStr,
+                style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant)),
+          ] else
+            Row(children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Tableau de bord',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.w700, letterSpacing: -0.5)),
+                  const SizedBox(height: 2),
+                  Text(dateStr,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant)),
+                ]),
+              ),
+              WsButton(
+                label: 'Nouvelle facture',
+                icon: Icons.add_rounded,
+                onPressed: () {},
+              ),
+            ]),
+          SizedBox(height: isMobile ? 16 : 28),
 
           // ── KPI cards ────────────────────────────────────────────────────────
           LayoutBuilder(builder: (ctx, c) {
@@ -449,9 +461,10 @@ class _LegendRow extends StatelessWidget {
 class _RecentInvoicesCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme  = Theme.of(context);
-    final async  = ref.watch(invoiceProvider);
-    final isDark = theme.brightness == Brightness.dark;
+    final theme    = Theme.of(context);
+    final async    = ref.watch(invoiceProvider);
+    final isDark   = theme.brightness == Brightness.dark;
+    final isMobile = Responsive.isMobile(context);
 
     return WsCard(
       padding: EdgeInsets.zero,
@@ -486,6 +499,46 @@ class _RecentInvoicesCard extends ConsumerWidget {
                   title: 'Aucune facture',
                   subtitle: 'Créez votre première facture client',
                 ),
+              );
+            }
+            // Mobile: card list — Desktop: data table
+            if (isMobile) {
+              return ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: recent.length,
+                separatorBuilder: (_, __) =>
+                    Divider(height: 1, color: theme.colorScheme.outlineVariant),
+                itemBuilder: (ctx, i) {
+                  final inv = recent[i];
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 6),
+                    title: Row(children: [
+                      Expanded(
+                        child: Text(inv.reference,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 13)),
+                      ),
+                      WsBadge.invoiceStatus(inv.status,
+                          size: WsBadgeSize.small),
+                    ]),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Row(children: [
+                        Expanded(
+                          child: Text(inv.clientName ?? '—',
+                              style:
+                                  const TextStyle(fontSize: 12)),
+                        ),
+                        Text(MoroccoFormat.mad(inv.totalTtc),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13)),
+                      ]),
+                    ),
+                  );
+                },
               );
             }
             return SingleChildScrollView(
