@@ -831,14 +831,8 @@ class _HistoriqueTab extends ConsumerWidget {
                   ),
                   if (session != null)
                     TextButton(
-                      onPressed: () async {
-                        await posRepo.closeSession(session.id!, 0);
-                        if (ctx.mounted) {
-                          ScaffoldMessenger.of(ctx).showSnackBar(
-                              const SnackBar(
-                                  content: Text('Session fermée')));
-                        }
-                      },
+                      onPressed: () =>
+                          _showCloseSessionDialog(ctx, ref, posRepo, session),
                       child: const Text('Fermer session'),
                     ),
                 ]),
@@ -957,6 +951,127 @@ class _HistoriqueTab extends ConsumerWidget {
     }
   }
 
+  void _showCloseSessionDialog(BuildContext context, WidgetRef ref,
+      dynamic posRepo, PosSession session) {
+    final cashCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) {
+          final entered = double.tryParse(cashCtrl.text) ?? 0;
+
+          return FutureBuilder<Map<String, dynamic>>(
+            future: posRepo.sessionSummary(session.id!),
+            builder: (ctx, snap) {
+              final d = snap.data ?? {};
+              final cashSales = (d['cash'] as num?)?.toDouble() ?? 0;
+              final expectedCash = session.openingCash + cashSales;
+              final diff = entered - expectedCash;
+
+              return AlertDialog(
+                title: const Text('Clôture de session'),
+                content: SizedBox(
+                  width: 360,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SessionRow('Ventes totales',
+                          MoroccoFormat.mad((d['total'] as num?)?.toDouble() ?? 0)),
+                      _SessionRow('Paiements espèces',
+                          MoroccoFormat.mad(cashSales)),
+                      _SessionRow('Paiements carte',
+                          MoroccoFormat.mad((d['card'] as num?)?.toDouble() ?? 0)),
+                      _SessionRow('Fond de caisse initial',
+                          MoroccoFormat.mad(session.openingCash)),
+                      _SessionRow('Caisse théorique',
+                          MoroccoFormat.mad(expectedCash), bold: true),
+                      const Divider(height: 20),
+                      TextField(
+                        controller: cashCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Caisse comptée (DH)',
+                          prefixIcon: Icon(Icons.calculate_outlined),
+                        ),
+                        keyboardType: TextInputType.number,
+                        onChanged: (_) => setState(() {}),
+                      ),
+                      if (cashCtrl.text.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: (diff.abs() < 0.5
+                                    ? Colors.green
+                                    : diff < 0
+                                        ? Colors.red
+                                        : Colors.orange)
+                                .withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(children: [
+                            Icon(
+                              diff.abs() < 0.5
+                                  ? Icons.check_circle_outline
+                                  : Icons.warning_amber_outlined,
+                              size: 16,
+                              color: diff.abs() < 0.5
+                                  ? Colors.green
+                                  : diff < 0
+                                      ? Colors.red
+                                      : Colors.orange,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              diff.abs() < 0.5
+                                  ? 'Caisse équilibrée'
+                                  : '${diff > 0 ? 'Excédent' : 'Manque'}: ${MoroccoFormat.mad(diff.abs())}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                color: diff.abs() < 0.5
+                                    ? Colors.green
+                                    : diff < 0
+                                        ? Colors.red
+                                        : Colors.orange,
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      child: const Text('Annuler')),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.lock_outline, size: 16),
+                    label: const Text('Clôturer'),
+                    onPressed: () async {
+                      final closingCash = cashCtrl.text.isNotEmpty
+                          ? (double.tryParse(cashCtrl.text) ?? 0)
+                          : expectedCash;
+                      await posRepo.closeSession(session.id!, closingCash);
+                      if (ctx.mounted) {
+                        Navigator.of(ctx).pop();
+                        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+                            content: Text('Session clôturée avec succès')));
+                      }
+                    },
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
   void _showSaleDetail(BuildContext context, WidgetRef ref, int saleId) {
     final repo = ref.read(posRepoProvider);
     showDialog(
@@ -973,6 +1088,30 @@ class _HistoriqueTab extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _SessionRow extends StatelessWidget {
+  const _SessionRow(this.label, this.value, {this.bold = false});
+  final String label, value;
+  final bool bold;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label,
+                style: TextStyle(
+                    fontSize: 13,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            Text(value,
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: bold ? FontWeight.bold : FontWeight.w500)),
+          ],
+        ),
+      );
 }
 
 class _SummaryChip extends StatelessWidget {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/database/database_helper.dart';
 import '../../core/models/subscription.dart';
 import '../../core/providers/auth_provider.dart';
 import '../../core/utils/morocco_format.dart';
@@ -185,6 +186,45 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage> {
   }
 }
 
+// ── Plan selection helper ────────────────────────────────────────────────────
+
+Future<void> _selectPlan(
+    BuildContext context, WidgetRef ref, SubscriptionPlan plan) async {
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Passer au plan ${plan.name}'),
+      content: Text(
+          'Activer le plan ${plan.name} à ${MoroccoFormat.mad(plan.priceMonthly)}/mois ?'),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annuler')),
+        FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Confirmer')),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+
+  final endMs = DateTime.now()
+      .add(const Duration(days: 30))
+      .millisecondsSinceEpoch;
+
+  await DatabaseHelper.instance.setSetting('subscription_plan', plan.id);
+  await DatabaseHelper.instance.setSetting('subscription_status', 'active');
+  await DatabaseHelper.instance.setSetting('subscription_end', endMs.toString());
+
+  ref.invalidate(subscriptionProvider);
+
+  if (context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Plan ${plan.name} activé avec succès !')),
+    );
+  }
+}
+
 class _CurrentPlanBanner extends StatelessWidget {
   const _CurrentPlanBanner({required this.sub});
   final ActiveSubscription sub;
@@ -260,15 +300,16 @@ class _CurrentPlanBanner extends StatelessWidget {
             ),
           ),
           if (sub.isTrial || sub.planId == 'starter')
-            FilledButton(
+            Consumer(builder: (_, ref, __) => FilledButton(
               style: FilledButton.styleFrom(
                 backgroundColor: Colors.white,
                 foregroundColor: theme.colorScheme.primary,
               ),
-              onPressed: () {},
+              onPressed: () => _selectPlan(
+                  context, ref, kSubscriptionPlans.firstWhere((p) => p.id == 'pro')),
               child: const Text('Passer au Pro',
                   style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
+            )),
         ],
       ),
     );
@@ -293,7 +334,7 @@ class _Pill extends StatelessWidget {
       );
 }
 
-class _PlanCard extends StatelessWidget {
+class _PlanCard extends ConsumerWidget {
   const _PlanCard({
     required this.plan,
     required this.yearly,
@@ -305,7 +346,7 @@ class _PlanCard extends StatelessWidget {
   final bool isCurrent;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final price = yearly ? plan.priceYearly / 12 : plan.priceMonthly;
     final isFree = price == 0;
@@ -423,7 +464,7 @@ class _PlanCard extends StatelessWidget {
                       child: const Text('Plan actuel'),
                     )
                   : FilledButton(
-                      onPressed: () {},
+                      onPressed: () => _selectPlan(context, ref, plan),
                       child: Text(isFree
                           ? 'Démarrer gratuitement'
                           : 'Choisir ${plan.name}'),

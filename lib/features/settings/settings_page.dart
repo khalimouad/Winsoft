@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/app.dart';
 import '../../core/database/database_helper.dart';
+import '../../core/models/accounting_country.dart';
 import '../../core/models/app_lists.dart';
 import '../../core/models/payroll_config.dart';
+import '../../core/providers/auth_provider.dart';
 import '../../core/providers/providers.dart';
 import '../../core/providers/language_provider.dart';
 import '../../core/services/backup_service.dart';
@@ -372,6 +374,59 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       child: const Text('Enregistrer les valeurs'),
                     ),
                   ],
+                ),
+                const SizedBox(height: 20),
+
+                // ── Accounting Country ───────────────────────────────────────
+                Consumer(
+                  builder: (ctx, ref, _) {
+                    final subAsync = ref.watch(subscriptionProvider);
+                    final settings = ref.watch(settingsProvider).valueOrNull ?? {};
+                    final currentCode = settings[AccountingCountry.kSettingKey] ?? 'MA';
+                    final planId = subAsync.valueOrNull?.planId ?? 'starter';
+
+                    return _Section(
+                      title: 'Référentiel comptable',
+                      icon: Icons.account_balance_outlined,
+                      children: [
+                        Text(
+                          'Choisissez le plan comptable selon votre pays.'
+                          ' Certains référentiels nécessitent un abonnement supérieur.',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: AccountingCountry.all.map((country) {
+                            final isSelected = country.code == currentCode;
+                            final isLocked = _isCountryLocked(country.requiredPlan, planId);
+                            return _CountryChip(
+                              country: country,
+                              isSelected: isSelected,
+                              isLocked: isLocked,
+                              onTap: isLocked
+                                  ? null
+                                  : () async {
+                                      await DatabaseHelper.instance.setSetting(
+                                          AccountingCountry.kSettingKey, country.code);
+                                      ref.invalidate(settingsProvider);
+                                      if (ctx.mounted) {
+                                        ScaffoldMessenger.of(ctx)
+                                            .showSnackBar(SnackBar(
+                                          content: Text(
+                                              'Référentiel ${country.name} (${country.standard}) activé'),
+                                        ));
+                                      }
+                                    },
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 20),
 
@@ -900,6 +955,84 @@ class _JournalEditorState extends ConsumerState<_JournalEditor> {
         ]),
         const Divider(height: 24),
       ],
+    );
+  }
+}
+
+// ── Accounting country helpers ────────────────────────────────────────────────
+
+bool _isCountryLocked(String requiredPlan, String currentPlan) {
+  const order = ['starter', 'pro', 'enterprise'];
+  final required = order.indexOf(requiredPlan);
+  final current  = order.indexOf(currentPlan);
+  return current < required;
+}
+
+class _CountryChip extends StatelessWidget {
+  const _CountryChip({
+    required this.country,
+    required this.isSelected,
+    required this.isLocked,
+    this.onTap,
+  });
+
+  final AccountingCountry country;
+  final bool isSelected;
+  final bool isLocked;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Opacity(
+      opacity: isLocked ? 0.45 : 1.0,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? theme.colorScheme.primaryContainer
+                : theme.colorScheme.surfaceContainerHigh,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outlineVariant,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text(country.flag, style: const TextStyle(fontSize: 22)),
+            const SizedBox(height: 4),
+            Text(country.name,
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected
+                        ? theme.colorScheme.onPrimaryContainer
+                        : theme.colorScheme.onSurface)),
+            Text(country.standard,
+                style: TextStyle(
+                    fontSize: 10,
+                    color: theme.colorScheme.onSurfaceVariant)),
+            if (isLocked)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.lock_outline,
+                      size: 10, color: theme.colorScheme.onSurfaceVariant),
+                  const SizedBox(width: 2),
+                  Text(country.requiredPlan,
+                      style: TextStyle(
+                          fontSize: 9,
+                          color: theme.colorScheme.onSurfaceVariant)),
+                ]),
+              ),
+          ]),
+        ),
+      ),
     );
   }
 }

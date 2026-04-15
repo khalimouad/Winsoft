@@ -145,22 +145,6 @@ class AppTheme {
     final isDark = scheme.brightness == Brightness.dark;
     final text   = _textTheme(scheme);
 
-    // Shared shadow
-    final cardShadow = [
-      BoxShadow(
-        color: (isDark ? Colors.black : const Color(0xFF64748B)).withValues(alpha: isDark ? 0.3 : 0.06),
-        blurRadius: 8,
-        spreadRadius: 0,
-        offset: const Offset(0, 2),
-      ),
-      BoxShadow(
-        color: (isDark ? Colors.black : const Color(0xFF64748B)).withValues(alpha: isDark ? 0.2 : 0.04),
-        blurRadius: 3,
-        spreadRadius: 0,
-        offset: const Offset(0, 1),
-      ),
-    ];
-
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,

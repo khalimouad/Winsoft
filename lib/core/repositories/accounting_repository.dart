@@ -1,4 +1,5 @@
 import '../database/database_helper.dart';
+import '../models/accounting_country.dart';
 import '../models/journal_entry.dart';
 
 class AccountingRepository {
@@ -22,18 +23,22 @@ class AccountingRepository {
   Future<int> insertAccount(AccountChart a) async =>
       _db.insert('account_chart', a.toMap());
 
-  Future<void> seedPcm() async {
+  /// Seeds the chart of accounts for [country] if the table is empty.
+  /// Call this before every automatic journal posting.
+  Future<void> seedForCountry(AccountingCountry country) async {
     final existing = await _db.rawQueryScalar(
         'SELECT COUNT(*) FROM account_chart', []);
     if ((existing ?? 0) > 0) return;
-    final accounts = _pcmSeedAccounts();
     final db = await _db.database;
     final batch = db.batch();
-    for (final a in accounts) {
+    for (final a in country.seedAccounts) {
       batch.insert('account_chart', a.toMap());
     }
     await batch.commit(noResult: true);
   }
+
+  /// Legacy alias kept so the accounting page notifier still compiles.
+  Future<void> seedPcm() => seedForCountry(AccountingCountry.defaultCountry);
 
   // ── Journal entries ────────────────────────────────────────────────────────
 
@@ -122,8 +127,8 @@ class AccountingRepository {
     ''', [start, end]);
   }
 
-  // ── PCM seed ───────────────────────────────────────────────────────────────
-
+  // ── Legacy PCM seed (unused — kept for reference) ────────────────────────
+  // ignore: unused_element
   static List<AccountChart> _pcmSeedAccounts() => [
     // Classe 1
     const AccountChart(code: '1111', label: 'Capital social', classNum: 1, type: 'bilan'),

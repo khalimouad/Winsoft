@@ -431,7 +431,7 @@ class WsButton extends StatelessWidget {
           ])
         : Text(label, style: TextStyle(fontSize: fSize, fontWeight: FontWeight.w600));
 
-    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(8));
+    final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
     final padding = EdgeInsets.symmetric(horizontal: hPad, vertical: vPad);
 
     switch (style) {
