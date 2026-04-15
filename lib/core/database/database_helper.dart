@@ -18,7 +18,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 7,
+      version: 8,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
@@ -159,6 +159,7 @@ class DatabaseHelper {
     await _createV5Tables(db);
     await _createV6Tables(db);
     await _createV7Tables(db);
+    await _createV8Tables(db);
     await _seedData(db);
   }
 
@@ -180,6 +181,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 7) {
       await _createV7Tables(db);
+    }
+    if (oldVersion < 8) {
+      await _createV8Tables(db);
     }
   }
 
@@ -595,6 +599,75 @@ class DatabaseHelper {
         created_at          INTEGER NOT NULL
       )
     ''');
+  }
+
+  Future<void> _createV8Tables(Database db) async {
+    // ── Purchase Requests (Demandes d'achat) ─────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS purchase_requests (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        reference     TEXT    NOT NULL UNIQUE,
+        requested_by  TEXT,
+        department    TEXT,
+        date          INTEGER NOT NULL,
+        status        TEXT    NOT NULL DEFAULT 'Brouillon',
+        notes         TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS purchase_request_items (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_id      INTEGER NOT NULL REFERENCES purchase_requests(id) ON DELETE CASCADE,
+        product_id      INTEGER REFERENCES products(id) ON DELETE SET NULL,
+        description     TEXT    NOT NULL,
+        quantity        REAL    NOT NULL DEFAULT 1,
+        estimated_price REAL    NOT NULL DEFAULT 0
+      )
+    ''');
+
+    // ── Receptions / GRN (Bons de réception) ─────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS receptions (
+        id                INTEGER PRIMARY KEY AUTOINCREMENT,
+        reference         TEXT    NOT NULL UNIQUE,
+        purchase_order_id INTEGER REFERENCES purchase_orders(id) ON DELETE SET NULL,
+        supplier_id       INTEGER NOT NULL REFERENCES suppliers(id),
+        date              INTEGER NOT NULL,
+        status            TEXT    NOT NULL DEFAULT 'Brouillon',
+        notes             TEXT,
+        total_ht          REAL    NOT NULL DEFAULT 0,
+        total_tva         REAL    NOT NULL DEFAULT 0,
+        total_ttc         REAL    NOT NULL DEFAULT 0
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS reception_items (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        reception_id  INTEGER NOT NULL REFERENCES receptions(id) ON DELETE CASCADE,
+        po_item_id    INTEGER REFERENCES purchase_order_items(id) ON DELETE SET NULL,
+        product_id    INTEGER REFERENCES products(id) ON DELETE SET NULL,
+        description   TEXT    NOT NULL,
+        quantity      REAL    NOT NULL DEFAULT 1,
+        unit_price_ht REAL    NOT NULL DEFAULT 0,
+        tva_rate      REAL    NOT NULL DEFAULT 20
+      )
+    ''');
+
+    // Seed DA/GRN prefixes
+    try {
+      await db.insert('app_lists', {
+        'list_name': 'da_prefix',
+        'value': 'DA',
+        'sort_order': 0,
+      });
+      await db.insert('app_lists', {
+        'list_name': 'grn_prefix',
+        'value': 'GRN',
+        'sort_order': 0,
+      });
+    } catch (_) {}
   }
 
   Future<void> _createV6Tables(Database db) async {

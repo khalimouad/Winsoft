@@ -1,11 +1,16 @@
 import '../database/database_helper.dart';
 import '../models/delivery.dart';
 import '../models/invoice.dart';
+import '../models/reception.dart';
 import '../models/return_note.dart';
+import '../models/supplier_invoice.dart';
 import '../repositories/delivery_repository.dart';
 import '../repositories/invoice_repository.dart';
+import '../repositories/reception_repository.dart';
 import '../repositories/return_note_repository.dart';
 import '../repositories/sale_order_repository.dart';
+import '../repositories/purchase_order_repository.dart';
+import '../repositories/supplier_invoice_repository.dart';
 
 /// Central document workflow service.
 ///
@@ -26,6 +31,9 @@ class DocumentWorkflowService {
   final _invoiceRepo = InvoiceRepository();
   final _returnNoteRepo = ReturnNoteRepository();
   final _orderRepo = SaleOrderRepository();
+  final _receptionRepo = ReceptionRepository();
+  final _poRepo = PurchaseOrderRepository();
+  final _supplierInvoiceRepo = SupplierInvoiceRepository();
 
   // ── Reference generation ─────────────────────────────────────────────────
 
@@ -222,5 +230,93 @@ class DocumentWorkflowService {
     final saved = await _invoiceRepo.insert(invoice, invoiceItems);
     await _orderRepo.updateStatus(orderId, 'Terminée');
     return saved;
+  }
+
+  // ── Purchase Order → Reception (GRN) ────────────────────────────────────────
+
+  /// Creates a Bon de Réception (GRN) from a Purchase Order.
+  ///
+  /// - Auto-numbers the GRN (prefix from settings, default GRN)
+  /// - Copies all PO lines into reception lines with traceability
+  /// - Updates PO status to 'Reçu'
+  ///
+  /// Returns the newly created [Reception].
+  Future<Reception> createReceptionFromPO(int poId) async {
+    final po = await _poRepo.getById(poId);
+    if (po == null) throw Exception('Bon de commande introuvable: $poId');
+
+    final prefix = await _db.getSetting('grn_prefix') ?? 'GRN';
+    final ref = await generateReference(prefix, 'receptions');
+
+    final receptionItems = po.items
+        .map((pi) => ReceptionItem(
+              poItemId: pi.id,
+              productId: pi.productId,
+              description: pi.description,
+              quantity: pi.quantity,
+              unitPriceHt: pi.unitPriceHt,
+              tvaRate: pi.tvaRate,
+            ))
+        .toList();
+
+    final reception = Reception(
+      reference: ref,
+      purchaseOrderId: poId,
+      supplierId: po.supplierId,
+      supplierName: po.supplierName,
+      date: DateTime.now().millisecondsSinceEpoch,
+      status: 'Brouillon',
+    );
+
+    final saved = await _receptionRepo.insert(reception, receptionItems);
+    await _poRepo.updateStatus(poId, 'Reçu');
+    return saved;
+  }
+
+  // ── Reception → Supplier Invoice ─────────────────────────────────────────────
+
+  /// Creates a Facture Fournisseur from a Reception / GRN.
+  ///
+  /// Returns the newly created [SupplierInvoice].
+  Future<SupplierInvoice> createSupplierInvoiceFromReception(
+      int receptionId) async {
+    final reception = await _receptionRepo.getById(receptionId);
+    if (reception == null) {
+      throw Exception('Réception introuvable: $receptionId');
+    }
+
+    final prefix = await _db.getSetting('si_prefix') ?? 'FF';
+    final ref = await generateReference(prefix, 'supplier_invoices');
+    final dueDays =
+        int.tryParse(await _db.getSetting('invoice_due_days') ?? '30') ?? 30;
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final due = now + Duration(days: dueDays).inMilliseconds;
+
+    final invoiceItems = reception.items
+        .map((ri) => SupplierInvoiceItem(
+              invoiceId: 0,
+              description: ri.description,
+              quantity: ri.quantity,
+              unitPriceHt: ri.unitPriceHt,
+              tvaRate: ri.tvaRate,
+            ))
+        .toList();
+
+    final invoice = SupplierInvoice(
+      reference: ref,
+      supplierId: reception.supplierId,
+      supplierName: reception.supplierName,
+      issuedDate: now,
+      dueDate: due,
+      totalHt: reception.totalHt,
+      totalTva: reception.totalTva,
+      totalTtc: reception.totalTtc,
+      items: invoiceItems,
+    );
+
+    final id = await _supplierInvoiceRepo.insert(invoice);
+    await _receptionRepo.updateStatus(receptionId, 'Confirmé');
+    return invoice.copyWith(id: id);
   }
 }

@@ -9,6 +9,8 @@ import '../models/invoice.dart';
 import '../models/delivery.dart';
 import '../models/return_note.dart';
 import '../models/payment.dart';
+import '../models/reception.dart';
+import '../models/purchase_request.dart';
 import '../models/supplier.dart';
 import '../models/purchase_order.dart';
 import '../models/supplier_invoice.dart';
@@ -28,6 +30,8 @@ import '../repositories/delivery_repository.dart';
 import '../repositories/return_note_repository.dart';
 import '../repositories/payments_received_repository.dart';
 import '../repositories/payments_sent_repository.dart';
+import '../repositories/reception_repository.dart';
+import '../repositories/purchase_request_repository.dart';
 import '../repositories/supplier_repository.dart';
 import '../repositories/purchase_order_repository.dart';
 import '../repositories/supplier_invoice_repository.dart';
@@ -781,3 +785,64 @@ class PaymentsSentNotifier extends AsyncNotifier<List<PaymentSent>> {
 final paymentsSentProvider =
     AsyncNotifierProvider<PaymentsSentNotifier, List<PaymentSent>>(
         PaymentsSentNotifier.new);
+
+// ── Receptions (GRN) ─────────────────────────────────────────────────────────
+
+final receptionRepoProvider = Provider((_) => ReceptionRepository());
+
+class ReceptionNotifier extends AsyncNotifier<List<Reception>> {
+  @override
+  Future<List<Reception>> build() =>
+      ref.read(receptionRepoProvider).getAll();
+
+  Future<void> add(Reception reception, List<ReceptionItem> items) async {
+    await ref.read(receptionRepoProvider).insert(reception, items);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(receptionRepoProvider).updateStatus(id, status);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(receptionRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final receptionProvider =
+    AsyncNotifierProvider<ReceptionNotifier, List<Reception>>(
+        ReceptionNotifier.new);
+
+// ── Purchase Requests (DA) ────────────────────────────────────────────────────
+
+final purchaseRequestRepoProvider =
+    Provider((_) => PurchaseRequestRepository());
+
+class PurchaseRequestNotifier
+    extends AsyncNotifier<List<PurchaseRequest>> {
+  @override
+  Future<List<PurchaseRequest>> build() =>
+      ref.read(purchaseRequestRepoProvider).getAll();
+
+  Future<void> add(
+      PurchaseRequest request, List<PurchaseRequestItem> items) async {
+    await ref.read(purchaseRequestRepoProvider).insert(request, items);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref.read(purchaseRequestRepoProvider).updateStatus(id, status);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(purchaseRequestRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final purchaseRequestProvider =
+    AsyncNotifierProvider<PurchaseRequestNotifier, List<PurchaseRequest>>(
+        PurchaseRequestNotifier.new);

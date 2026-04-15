@@ -66,6 +66,37 @@ class SupplierInvoice {
         'total_tva': totalTva,
         'total_ttc': totalTtc,
       };
+
+  SupplierInvoice copyWith({
+    int? id,
+    String? reference,
+    int? supplierId,
+    int? orderId,
+    int? issuedDate,
+    int? dueDate,
+    String? status,
+    String? notes,
+    double? totalHt,
+    double? totalTva,
+    double? totalTtc,
+    String? supplierName,
+    List<SupplierInvoiceItem>? items,
+  }) =>
+      SupplierInvoice(
+        id: id ?? this.id,
+        reference: reference ?? this.reference,
+        supplierId: supplierId ?? this.supplierId,
+        orderId: orderId ?? this.orderId,
+        issuedDate: issuedDate ?? this.issuedDate,
+        dueDate: dueDate ?? this.dueDate,
+        status: status ?? this.status,
+        notes: notes ?? this.notes,
+        totalHt: totalHt ?? this.totalHt,
+        totalTva: totalTva ?? this.totalTva,
+        totalTtc: totalTtc ?? this.totalTtc,
+        supplierName: supplierName ?? this.supplierName,
+        items: items ?? this.items,
+      );
 }
 
 class SupplierInvoiceItem {

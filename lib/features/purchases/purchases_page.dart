@@ -5,6 +5,9 @@ import '../../core/models/supplier.dart';
 import '../../core/models/purchase_order.dart';
 import '../../core/models/supplier_invoice.dart';
 import '../../core/models/payment.dart';
+import '../../core/models/reception.dart';
+import '../../core/models/purchase_request.dart';
+import '../../core/services/document_workflow.dart';
 import '../../core/providers/providers.dart';
 import '../../core/services/pdf_service.dart';
 import '../../core/utils/morocco_format.dart';
@@ -23,7 +26,7 @@ class _PurchasesPageState extends ConsumerState<PurchasesPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 4, vsync: this);
+    _tab = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -51,7 +54,9 @@ class _PurchasesPageState extends ConsumerState<PurchasesPage>
             padding: const EdgeInsets.symmetric(horizontal: 16),
             tabs: const [
               Tab(text: 'Fournisseurs'),
+              Tab(text: 'Demandes d\'achat'),
               Tab(text: 'Bons de commande'),
+              Tab(text: 'Réceptions'),
               Tab(text: 'Factures fournisseurs'),
               Tab(text: 'Paiements fournisseurs'),
             ],
@@ -61,7 +66,9 @@ class _PurchasesPageState extends ConsumerState<PurchasesPage>
               controller: _tab,
               children: const [
                 _SuppliersTab(),
+                _PurchaseRequestsTab(),
                 _PurchaseOrdersTab(),
+                _ReceptionsTab(),
                 _SupplierInvoicesTab(),
                 _SupplierPaymentsTab(),
               ],
@@ -1053,5 +1060,483 @@ class _SupplierPaymentsTab extends ConsumerWidget {
         ]);
       },
     );
+  }
+}
+
+// ── Purchase Requests (DA) Tab ─────────────────────────────────────────────────
+
+class _PurchaseRequestsTab extends ConsumerWidget {
+  const _PurchaseRequestsTab();
+
+  static const _statusColors = {
+    'Brouillon':  Colors.grey,
+    'Soumis':     Colors.blue,
+    'Approuvé':   Colors.green,
+    'Commandé':   Colors.teal,
+    'Annulé':     Colors.red,
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final requestsAsync = ref.watch(purchaseRequestProvider);
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(children: [
+        Row(children: [
+          const Spacer(),
+          FilledButton.icon(
+            onPressed: () => _showAddDialog(context, ref),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Nouvelle demande d\'achat'),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        Expanded(
+          child: requestsAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Erreur: $e')),
+            data: (requests) {
+              if (requests.isEmpty) {
+                return const Center(
+                    child: Text('Aucune demande d\'achat'));
+              }
+              return ListView.builder(
+                itemCount: requests.length,
+                itemBuilder: (ctx, i) {
+                  final req = requests[i];
+                  final color = _statusColors[req.status] ?? Colors.grey;
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Row(children: [
+                        Text(req.reference,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(req.status,
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: color,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      ]),
+                      subtitle: Text(
+                          '${req.requestedBy ?? ''}'
+                          '${req.department != null ? ' · ${req.department}' : ''}'
+                          ' · ${MoroccoFormat.dateFromMs(req.date)}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurfaceVariant)),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        if (req.status == 'Approuvé')
+                          Tooltip(
+                            message: 'Créer un bon de commande',
+                            child: IconButton(
+                              icon: const Icon(Icons.shopping_cart_outlined,
+                                  size: 18),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () async {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text(
+                                          'Créez un BC depuis l\'onglet Bons de commande')),
+                                );
+                              },
+                            ),
+                          ),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert, size: 18),
+                          itemBuilder: (_) => [
+                            'Brouillon', 'Soumis', 'Approuvé',
+                            'Commandé', 'Annulé'
+                          ]
+                              .map((s) => PopupMenuItem(
+                                  value: s, child: Text(s)))
+                              .toList(),
+                          onSelected: (s) => ref
+                              .read(purchaseRequestProvider.notifier)
+                              .updateStatus(req.id!, s),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete_outline,
+                              size: 18,
+                              color: theme.colorScheme.error),
+                          tooltip: 'Supprimer',
+                          onPressed: () => ref
+                              .read(purchaseRequestProvider.notifier)
+                              .remove(req.id!),
+                        ),
+                      ]),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+
+  void _showAddDialog(BuildContext context, WidgetRef ref) {
+    final descCtrl = TextEditingController();
+    final qtyCtrl = TextEditingController(text: '1');
+    final priceCtrl = TextEditingController(text: '0');
+    final requestedByCtrl = TextEditingController();
+    final deptCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nouvelle demande d\'achat'),
+        content: SizedBox(
+          width: 420,
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextFormField(
+                  controller: requestedByCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'Demandeur'),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: deptCtrl,
+                  decoration:
+                      const InputDecoration(labelText: 'Département'),
+                ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: descCtrl,
+                  decoration: const InputDecoration(
+                      labelText: 'Article / Description *'),
+                  validator: (v) =>
+                      v == null || v.isEmpty ? 'Requis' : null,
+                ),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: qtyCtrl,
+                      decoration:
+                          const InputDecoration(labelText: 'Quantité'),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextFormField(
+                      controller: priceCtrl,
+                      decoration: const InputDecoration(
+                          labelText: 'Prix estimé HT'),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ]),
+              ]),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+              final repo = ref.read(purchaseRequestRepoProvider);
+              final seq = await repo.nextSequence();
+              final s = ref.read(settingsProvider).valueOrNull ?? {};
+              final daPrefix = s['da_prefix'] ?? 'DA';
+              final now = DateTime.now().millisecondsSinceEpoch;
+              final request = PurchaseRequest(
+                reference:
+                    '$daPrefix-${DateTime.now().year}-${seq.toString().padLeft(3, '0')}',
+                requestedBy: requestedByCtrl.text.trim().isEmpty
+                    ? null
+                    : requestedByCtrl.text.trim(),
+                department: deptCtrl.text.trim().isEmpty
+                    ? null
+                    : deptCtrl.text.trim(),
+                date: now,
+              );
+              final items = [
+                PurchaseRequestItem(
+                  description: descCtrl.text.trim(),
+                  quantity: double.tryParse(qtyCtrl.text) ?? 1,
+                  estimatedPrice:
+                      double.tryParse(priceCtrl.text) ?? 0,
+                )
+              ];
+              await ref
+                  .read(purchaseRequestProvider.notifier)
+                  .add(request, items);
+              if (ctx.mounted) Navigator.of(ctx).pop();
+            },
+            child: const Text('Créer'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Receptions Tab ────────────────────────────────────────────────────────────
+
+class _ReceptionsTab extends ConsumerWidget {
+  const _ReceptionsTab();
+
+  static const _statusColors = {
+    'Brouillon':  Colors.grey,
+    'Confirmé':   Colors.green,
+    'Annulé':     Colors.red,
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final receptionsAsync = ref.watch(receptionProvider);
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(children: [
+        Row(children: [
+          const Spacer(),
+          FilledButton.icon(
+            onPressed: () => _showAddDialog(context, ref),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Nouvelle réception'),
+          ),
+        ]),
+        const SizedBox(height: 12),
+        Expanded(
+          child: receptionsAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Erreur: $e')),
+            data: (receptions) {
+              if (receptions.isEmpty) {
+                return const Center(child: Text('Aucune réception'));
+              }
+              return ListView.builder(
+                itemCount: receptions.length,
+                itemBuilder: (ctx, i) {
+                  final rec = receptions[i];
+                  final color = _statusColors[rec.status] ?? Colors.grey;
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Row(children: [
+                        Text(rec.reference,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(rec.status,
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: color,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      ]),
+                      subtitle: Text(
+                          '${rec.supplierName ?? ''} · ${MoroccoFormat.dateFromMs(rec.date)}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurfaceVariant)),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(MoroccoFormat.mad(rec.totalTtc),
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold)),
+                        if (rec.status == 'Brouillon')
+                          Tooltip(
+                            message: 'Créer facture fournisseur',
+                            child: IconButton(
+                              icon: const Icon(Icons.receipt_long_outlined,
+                                  size: 18),
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () async {
+                                try {
+                                  await DocumentWorkflowService.instance
+                                      .createSupplierInvoiceFromReception(
+                                          rec.id!);
+                                  ref.invalidate(receptionProvider);
+                                  ref.invalidate(supplierInvoiceProvider);
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Facture fournisseur créée')),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (ctx.mounted) {
+                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                      SnackBar(
+                                          content: Text('Erreur: $e')),
+                                    );
+                                  }
+                                }
+                              },
+                            ),
+                          ),
+                        PopupMenuButton<String>(
+                          icon: const Icon(Icons.more_vert, size: 18),
+                          itemBuilder: (_) =>
+                              ['Brouillon', 'Confirmé', 'Annulé']
+                                  .map((s) => PopupMenuItem(
+                                      value: s, child: Text(s)))
+                                  .toList(),
+                          onSelected: (s) => ref
+                              .read(receptionProvider.notifier)
+                              .updateStatus(rec.id!, s),
+                        ),
+                      ]),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+
+  void _showAddDialog(BuildContext context, WidgetRef ref) {
+    final suppliersAsync = ref.read(supplierProvider);
+    suppliersAsync.whenData((suppliers) {
+      if (suppliers.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content:
+                Text('Ajoutez d\'abord un fournisseur')));
+        return;
+      }
+      int? selectedSupplierId = suppliers.first.id;
+      final descCtrl = TextEditingController();
+      final qtyCtrl = TextEditingController(text: '1');
+      final priceCtrl = TextEditingController(text: '0');
+      final tvaCtrl = TextEditingController(text: '20');
+      final formKey = GlobalKey<FormState>();
+
+      showDialog(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setState) => AlertDialog(
+            title: const Text('Nouvelle réception (GRN)'),
+            content: SizedBox(
+              width: 420,
+              child: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    DropdownButtonFormField<int>(
+                      value: selectedSupplierId,
+                      decoration:
+                          const InputDecoration(labelText: 'Fournisseur *'),
+                      items: suppliers
+                          .map((s) => DropdownMenuItem(
+                              value: s.id, child: Text(s.name)))
+                          .toList(),
+                      onChanged: (v) =>
+                          setState(() => selectedSupplierId = v),
+                    ),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                      controller: descCtrl,
+                      decoration: const InputDecoration(
+                          labelText: 'Article reçu *'),
+                      validator: (v) =>
+                          v == null || v.isEmpty ? 'Requis' : null,
+                    ),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: qtyCtrl,
+                          decoration:
+                              const InputDecoration(labelText: 'Quantité'),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextFormField(
+                          controller: priceCtrl,
+                          decoration: const InputDecoration(
+                              labelText: 'Prix HT *'),
+                          keyboardType: TextInputType.number,
+                          validator: (v) =>
+                              v == null || v.isEmpty ? 'Requis' : null,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextFormField(
+                          controller: tvaCtrl,
+                          decoration:
+                              const InputDecoration(labelText: 'TVA %'),
+                          keyboardType: TextInputType.number,
+                        ),
+                      ),
+                    ]),
+                  ]),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Annuler')),
+              FilledButton(
+                onPressed: () async {
+                  if (!formKey.currentState!.validate()) return;
+                  final repo = ref.read(receptionRepoProvider);
+                  final seq = await repo.nextSequence();
+                  final s = ref.read(settingsProvider).valueOrNull ?? {};
+                  final grnPrefix = s['grn_prefix'] ?? 'GRN';
+                  final qty = double.tryParse(qtyCtrl.text) ?? 1;
+                  final price = double.tryParse(priceCtrl.text) ?? 0;
+                  final tvaR = double.tryParse(tvaCtrl.text) ?? 20;
+                  final item = ReceptionItem(
+                    description: descCtrl.text.trim(),
+                    quantity: qty,
+                    unitPriceHt: price,
+                    tvaRate: tvaR,
+                  );
+                  final reception = Reception(
+                    reference:
+                        '$grnPrefix-${DateTime.now().year}-${seq.toString().padLeft(3, '0')}',
+                    supplierId: selectedSupplierId!,
+                    date: DateTime.now().millisecondsSinceEpoch,
+                  );
+                  await ref
+                      .read(receptionProvider.notifier)
+                      .add(reception, [item]);
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                },
+                child: const Text('Créer'),
+              ),
+            ],
+          ),
+        ),
+      );
+    });
   }
 }
