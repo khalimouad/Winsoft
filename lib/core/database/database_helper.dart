@@ -18,7 +18,7 @@ class DatabaseHelper {
 
     return openDatabase(
       dbPath,
-      version: 8,
+      version: 9,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
       onConfigure: (db) => db.execute('PRAGMA foreign_keys = ON'),
@@ -160,6 +160,7 @@ class DatabaseHelper {
     await _createV6Tables(db);
     await _createV7Tables(db);
     await _createV8Tables(db);
+    await _createV9Tables(db);
     await _seedData(db);
   }
 
@@ -184,6 +185,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 8) {
       await _createV8Tables(db);
+    }
+    if (oldVersion < 9) {
+      await _createV9Tables(db);
     }
   }
 
@@ -666,6 +670,73 @@ class DatabaseHelper {
         'list_name': 'grn_prefix',
         'value': 'GRN',
         'sort_order': 0,
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _createV9Tables(Database db) async {
+    // ── Product categories ────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS product_categories (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT    NOT NULL,
+        parent_id   INTEGER REFERENCES product_categories(id) ON DELETE SET NULL,
+        color       TEXT,
+        description TEXT
+      )
+    ''');
+
+    // ── Warehouses ────────────────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS warehouses (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        name        TEXT    NOT NULL,
+        code        TEXT,
+        city        TEXT,
+        address     TEXT,
+        is_default  INTEGER NOT NULL DEFAULT 0,
+        is_active   INTEGER NOT NULL DEFAULT 1,
+        created_at  INTEGER NOT NULL
+      )
+    ''');
+
+    // ── Physical inventories ──────────────────────────────────────────────────
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS physical_inventories (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        reference    TEXT    NOT NULL UNIQUE,
+        warehouse_id INTEGER REFERENCES warehouses(id) ON DELETE SET NULL,
+        date         INTEGER NOT NULL,
+        status       TEXT    NOT NULL DEFAULT 'Brouillon',
+        notes        TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS physical_inventory_lines (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        inventory_id INTEGER NOT NULL REFERENCES physical_inventories(id) ON DELETE CASCADE,
+        product_id   INTEGER REFERENCES products(id) ON DELETE SET NULL,
+        expected_qty REAL    NOT NULL DEFAULT 0,
+        counted_qty  REAL    NOT NULL DEFAULT 0
+      )
+    ''');
+
+    // Add category_id column to products if it doesn't exist
+    try {
+      await db.execute(
+          'ALTER TABLE products ADD COLUMN category_id INTEGER REFERENCES product_categories(id) ON DELETE SET NULL');
+    } catch (_) {}
+
+    // Seed a default warehouse
+    try {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await db.insert('warehouses', {
+        'name': 'Entrepôt principal',
+        'code': 'MAIN',
+        'is_default': 1,
+        'is_active': 1,
+        'created_at': now,
       });
     } catch (_) {}
   }

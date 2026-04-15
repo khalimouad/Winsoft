@@ -11,6 +11,9 @@ import '../models/return_note.dart';
 import '../models/payment.dart';
 import '../models/reception.dart';
 import '../models/purchase_request.dart';
+import '../models/warehouse.dart';
+import '../models/product_category.dart';
+import '../models/physical_inventory.dart';
 import '../models/supplier.dart';
 import '../models/purchase_order.dart';
 import '../models/supplier_invoice.dart';
@@ -32,6 +35,9 @@ import '../repositories/payments_received_repository.dart';
 import '../repositories/payments_sent_repository.dart';
 import '../repositories/reception_repository.dart';
 import '../repositories/purchase_request_repository.dart';
+import '../repositories/warehouse_repository.dart';
+import '../repositories/product_category_repository.dart';
+import '../repositories/physical_inventory_repository.dart';
 import '../repositories/supplier_repository.dart';
 import '../repositories/purchase_order_repository.dart';
 import '../repositories/supplier_invoice_repository.dart';
@@ -846,3 +852,122 @@ class PurchaseRequestNotifier
 final purchaseRequestProvider =
     AsyncNotifierProvider<PurchaseRequestNotifier, List<PurchaseRequest>>(
         PurchaseRequestNotifier.new);
+
+// ── Warehouses ────────────────────────────────────────────────────────────────
+
+final warehouseRepoProvider = Provider((_) => WarehouseRepository());
+
+class WarehouseNotifier extends AsyncNotifier<List<Warehouse>> {
+  @override
+  Future<List<Warehouse>> build() =>
+      ref.read(warehouseRepoProvider).getAll();
+
+  Future<void> add(Warehouse warehouse) async {
+    await ref.read(warehouseRepoProvider).insert(warehouse);
+    ref.invalidateSelf();
+  }
+
+  Future<void> edit(Warehouse warehouse) async {
+    await ref.read(warehouseRepoProvider).update(warehouse);
+    ref.invalidateSelf();
+  }
+
+  Future<void> setDefault(int id) async {
+    await ref.read(warehouseRepoProvider).setDefault(id);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(warehouseRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final warehouseProvider =
+    AsyncNotifierProvider<WarehouseNotifier, List<Warehouse>>(
+        WarehouseNotifier.new);
+
+// ── Product Categories ────────────────────────────────────────────────────────
+
+final productCategoryRepoProvider =
+    Provider((_) => ProductCategoryRepository());
+
+class ProductCategoryNotifier extends AsyncNotifier<List<ProductCategory>> {
+  @override
+  Future<List<ProductCategory>> build() =>
+      ref.read(productCategoryRepoProvider).getAll();
+
+  Future<void> add(ProductCategory category) async {
+    await ref.read(productCategoryRepoProvider).insert(category);
+    ref.invalidateSelf();
+  }
+
+  Future<void> edit(ProductCategory category) async {
+    await ref.read(productCategoryRepoProvider).update(category);
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(productCategoryRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final productCategoryProvider =
+    AsyncNotifierProvider<ProductCategoryNotifier, List<ProductCategory>>(
+        ProductCategoryNotifier.new);
+
+// ── Physical Inventories ──────────────────────────────────────────────────────
+
+final physicalInventoryRepoProvider =
+    Provider((_) => PhysicalInventoryRepository());
+
+class PhysicalInventoryNotifier
+    extends AsyncNotifier<List<PhysicalInventory>> {
+  @override
+  Future<List<PhysicalInventory>> build() =>
+      ref.read(physicalInventoryRepoProvider).getAll();
+
+  Future<void> add(
+      PhysicalInventory inventory, List<PhysicalInventoryLine> lines) async {
+    await ref
+        .read(physicalInventoryRepoProvider)
+        .insert(inventory, lines);
+    ref.invalidateSelf();
+  }
+
+  Future<void> updateStatus(int id, String status) async {
+    await ref
+        .read(physicalInventoryRepoProvider)
+        .updateStatus(id, status);
+    // If validated, apply variances to product stock
+    if (status == 'Validé') {
+      final inv =
+          await ref.read(physicalInventoryRepoProvider).getById(id);
+      if (inv != null) {
+        final productRepo = ref.read(productRepoProvider);
+        for (final line in inv.lines) {
+          if (line.productId != null && line.hasVariance) {
+            final product =
+                await productRepo.getById(line.productId!);
+            if (product != null) {
+              await productRepo.update(
+                  product.copyWith(stock: line.countedQty.round()));
+            }
+          }
+        }
+        ref.invalidate(productProvider);
+      }
+    }
+    ref.invalidateSelf();
+  }
+
+  Future<void> remove(int id) async {
+    await ref.read(physicalInventoryRepoProvider).delete(id);
+    ref.invalidateSelf();
+  }
+}
+
+final physicalInventoryProvider =
+    AsyncNotifierProvider<PhysicalInventoryNotifier, List<PhysicalInventory>>(
+        PhysicalInventoryNotifier.new);

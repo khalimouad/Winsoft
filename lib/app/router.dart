@@ -12,6 +12,7 @@ import '../features/invoices/invoices_page.dart';
 import '../features/purchases/purchases_page.dart';
 import '../features/hr/hr_page.dart';
 import '../features/accounting/accounting_page.dart';
+import '../features/inventory/inventory_page.dart';
 import '../features/manufacturing/manufacturing_page.dart';
 import '../features/reports/reports_page.dart';
 import '../features/declarations/declarations_page.dart';
@@ -101,6 +102,11 @@ GoRouter buildRouter(WidgetRef ref) {
             path: '/accounting',
             pageBuilder: (context, state) =>
                 const NoTransitionPage(child: AccountingPage()),
+          ),
+          GoRoute(
+            path: '/inventory',
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: InventoryPage()),
           ),
           GoRoute(
             path: '/manufacturing',
@@ -213,6 +219,12 @@ const List<NavDestination> appDestinations = [
     selectedIcon: Icon(Icons.inventory_2),
     route: '/products',
     groupLabel: 'INVENTAIRE',
+  ),
+  NavDestination(
+    label: 'Inventaire',
+    icon: Icon(Icons.warehouse_outlined),
+    selectedIcon: Icon(Icons.warehouse),
+    route: '/inventory',
   ),
   NavDestination(
     label: 'Production',
