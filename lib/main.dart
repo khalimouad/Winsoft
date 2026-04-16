@@ -1,7 +1,9 @@
-import 'dart:io';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'app/app.dart';
 import 'core/database/database_helper.dart';
@@ -9,16 +11,17 @@ import 'core/database/database_helper.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize sqflite FFI for Windows / Linux desktop
-  if (!Platform.isAndroid && !Platform.isIOS) {
+  if (kIsWeb) {
+    // Web (Firebase Studio, Vercel, Netlify …): use WebAssembly SQLite
+    databaseFactory = databaseFactoryFfiWeb;
+  } else if (!Platform.isAndroid && !Platform.isIOS) {
+    // Desktop (Windows / Linux / macOS): use FFI SQLite
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
+  // Mobile (Android / iOS): default sqflite factory — no setup needed
 
-  // Initialize French locale for intl (MAD currency + dates)
   await initializeDateFormatting('fr_MA', null);
-
-  // Warm up the database (runs onCreate + seed on first launch)
   await DatabaseHelper.instance.database;
 
   runApp(
