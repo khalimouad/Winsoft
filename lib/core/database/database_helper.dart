@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DatabaseHelper {
@@ -12,9 +13,15 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDb() async {
-    // sqflite FFI is initialized in main.dart before this is called
-    final path = await getDatabasesPath();
-    final dbPath = '$path/winsoft.db';
+    // On web, getDatabasesPath() returns null — use a plain key for IndexedDB.
+    // On native, use the platform documents directory.
+    final String dbPath;
+    if (kIsWeb) {
+      dbPath = 'winsoft.db';
+    } else {
+      final dir = await getDatabasesPath();
+      dbPath = '$dir/winsoft.db';
+    }
 
     return openDatabase(
       dbPath,
