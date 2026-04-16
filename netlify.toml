@@ -1,3 +1,0 @@
-[build]
-  command = "bash scripts/build_vercel.sh"
-  publish = "build/web"
